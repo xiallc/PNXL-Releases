@@ -1,0 +1,9 @@
+[Unit]
+Description=Pixie-Net XL: Automatically configuring FPGA
+
+[Service]
+WorkingDirectory=/var/www
+ExecStart=/var/www/autoboot.sh 
+
+[Install]
+WantedBy=multi-user.target

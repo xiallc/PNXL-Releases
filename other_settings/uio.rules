@@ -1,0 +1,3 @@
+#SUBSYSTEM=="uio", SYMLINK+="uio/%s{device/of_node/uio-alias}"
+SUBSYSTEM=="uio", GROUP="users", MODE="0660"
+KERNEL=="uio0",MODE="666"

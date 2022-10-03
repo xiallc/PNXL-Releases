@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30804.86
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "udp_receive", "udp_receive\udp_receive.vcxproj", "{D0DBB825-17C4-4FD7-AD00-E2FA81302FD4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D0DBB825-17C4-4FD7-AD00-E2FA81302FD4}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D0DBB825-17C4-4FD7-AD00-E2FA81302FD4}.Debug|Win32.Build.0 = Debug|Win32
+		{D0DBB825-17C4-4FD7-AD00-E2FA81302FD4}.Release|Win32.ActiveCfg = Release|Win32
+		{D0DBB825-17C4-4FD7-AD00-E2FA81302FD4}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {34EFB619-7FEE-4A25-B19A-3422CEF73C75}
+	EndGlobalSection
+EndGlobal
