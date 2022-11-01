@@ -192,6 +192,12 @@ int main(void) {
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB01;
       ADC_CLK_MHZ       =  ADC_CLK_MHZ_DB06_500;             
   } 
+  if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)
+  {
+      NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB02;
+      NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;
+      ADC_CLK_MHZ       =  ADC_CLK_MHZ_DB02;
+  }
 
   // check if FPGA booted
   tmp0 = mapped[AMZ_CSROUTL];
@@ -806,18 +812,18 @@ int main(void) {
                     // by now,  E is computed in FPGA and is only calculated here in non-UDP mode 
                     k=0;
                     mapped[AMZ_EXAFRD] = AK7_HDRMEM_A;   // write to  k7's addr for read -> reading from AK7_HDRMEM_D channel header fifo, low 16bit
-                    hdr[4*k+0] = mapped[AMZ_EXDRD];      // read 16 bits
+                    hdr[4*k+3] = mapped[AMZ_EXDRD];      // read 16 bits
                     if(SLOWREAD)  hdr[4*k+3] = mapped[AMZ_EXDRD];      // read 16 bits
                     mapped[AMZ_EXAFRD] = AK7_HDRMEM_B;   // write to  k7's addr for read -> reading from AK7_HDRMEM_D channel header fifo, low 16bit
-                    hdr[4*k+1] = mapped[AMZ_EXDRD];      // read 16 bits
+                    hdr[4*k+2] = mapped[AMZ_EXDRD];      // read 16 bits
                     if(SLOWREAD)  hdr[4*k+2] = mapped[AMZ_EXDRD];      // read 16 bits
                     mapped[AMZ_EXAFRD] = AK7_HDRMEM_C;   // write to  k7's addr for read -> reading from AK7_HDRMEM_D channel header fifo, low 16bit
-                    hdr[4*k+2] = mapped[AMZ_EXDRD];      // read 16 bits
+                    hdr[4*k+1] = mapped[AMZ_EXDRD];      // read 16 bits
                     if(SLOWREAD)  hdr[4*k+1] = mapped[AMZ_EXDRD];      // read 16 bits
                     if(fippiconfig.DATA_FLOW < 3)     // avoid conflict in advancing header pointers in DF=3
                     {
                         mapped[AMZ_EXAFRD] = AK7_HDRMEM_D;   // write to  k7's addr for read -> reading from AK7_HDRMEM_D channel header fifo, low 16bit
-                        hdr[4*k+3] = mapped[AMZ_EXDRD];      // read 16 bits
+                        hdr[4*k+0] = mapped[AMZ_EXDRD];      // read 16 bits
                         if(SLOWREAD)   hdr[4*k+0] = mapped[AMZ_EXDRD];      // read 16 bits
                     }
                     // the next 5 words only need to be read if storing data locally 
@@ -830,9 +836,9 @@ int main(void) {
 
                     // extract pileup bit   
                     if(fippiconfig.DATA_FLOW < 3) {
-                        pileup  = (hdr[3] & 0x0008) >0;
+                        pileup  = (hdr[0] & 0x0008) >0;
                     } else {
-                        pileup  = (hdr[1] & 0x0100) >0;
+                        pileup  = (hdr[2] & 0x0100) >0;
                     }
                     passpileup = (PILEUPCTRL[ch]==0)     || (PILEUPCTRL[ch]==1 && !pileup ); // either don't care  OR pilup test required and  pileup flag not set
                     // printf( "ch. %d, cfdout1 %d, cfdout2 %d, cfdsrc %d, cfdfrc %d ",ch,cfdout1,cfdout2,cfdsrc,cfdfrc); 
@@ -845,13 +851,22 @@ int main(void) {
                        // cfd needs some more computation
                        cfdout1 =  hdr[0]     + ((hdr[1]&0xFF) <<16);
                        cfdout2 = ((hdr[1]&0xFF00)>>8) + (hdr[2]<<8);          // TODO: was <<16?
-                       // TODO: different bits for DF=3
                        cfdsrc  = (hdr[3]>>1)&0x1;            // cfd source (sample in group for >125 MHz ADCs)
                        cfdfrc  = (hdr[3]>>2)&0x1;            // cfd forced if 1
+
+                       cfdout1 =  (hdr[3]&0xFFFC)     + ((hdr[2]&0xFF) <<16);
+                       cfdout2 = ((hdr[1]&0xFC00)>>8) + ( hdr[1]        <<8);          // TODO: was <<16?
+                       cfdsrc  = (hdr[3]&0x0001)>0;            // cfd source (sample in group for >125 MHz ADCs)
+                       cfdfrc  = (hdr[3]&0x0002)>0;            // cfd forced if 1
+                       // TODO: different bits for DF=3
+
                        cfdout2 = 0x1000000 - cfdout2;        // convert to positive
                        ph = (double)cfdout1 / ( (double)cfdout1 + (double)cfdout2 );              
                        //printf(", frac %f \n ",ph); 
-                       if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250)  | ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) | ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) )   {
+                       if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250) | 
+                           ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) |
+                           ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) | 
+                           ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) )   {
                           cfd = (int)floor(ph*16384); 
                           cfd = (cfd&0x3FFF);                  // combine cfd value and bits
                           cfd = cfd + (cfdsrc<<14);         
@@ -1358,7 +1373,7 @@ int main(void) {
      {        
          // find max, maxpos of rightmost peak
          tmp0=0; tmp1=0;
-         for( k=MAX_MCA_BINS; k >1; k--)
+         for( k=(MAX_MCA_BINS-1); k >1; k--)
          {
              // look for a local max
              if(mca[ch][k] > tmp0) 

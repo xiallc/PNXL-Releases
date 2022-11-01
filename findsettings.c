@@ -126,7 +126,8 @@ int main(void) {
  
   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250) | 
       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) |
-      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) )  
+      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) |
+      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) )
   {
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;
       DACstart = 12000;
@@ -163,7 +164,8 @@ int main(void) {
   // ----------- swap channels odd/even if necessary  -------------
   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250) |
       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) |
-      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) )
+      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) |
+      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) )
   {
   printf("Checking for swapped channels ...\n");
 
@@ -184,7 +186,11 @@ int main(void) {
 
             } // endfor  channels
         } // endfor K7s
-        setdacs04(mapped, dacs);
+        if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)
+            setdacs08(mapped, dacs);
+        else
+            setdacs04(mapped, dacs);
+        
         usleep(600000);    // extra  settling time
   
         // read the ADC back
@@ -307,7 +313,16 @@ int main(void) {
       setdacs04(mapped,DACvalues);       // TODO: this occasionally causes stack smashing?
       //printf("setting DACs to 2k\n");
   else
-      setdacs01(mapped,DACvalues); 
+     if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)
+     {
+        setdacs08(mapped,DACvalues);         
+     }
+     else     // any other DB
+     {
+
+         setdacs01(mapped,DACvalues); 
+     }
+
   usleep(300000);    // extra  settling time
     
 

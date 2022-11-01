@@ -67,6 +67,7 @@ extern "C"
 
   int setdacs01(volatile unsigned int *mapped, unsigned int *dacs); 
   int setdacs04(volatile unsigned int *mapped, unsigned int *dacs); 
+  int setdacs08(volatile unsigned int *mapped, unsigned int *dacs); 
   unsigned int ADCSPI_Write06(volatile unsigned int *mapped, unsigned int k7, unsigned int ch_k7, unsigned int addr, unsigned int data);
   unsigned int ADCSPI_Read06(volatile unsigned int *mapped, unsigned int k7, unsigned int ch_k7, unsigned int addr);
 

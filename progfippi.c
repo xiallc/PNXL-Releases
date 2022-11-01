@@ -97,6 +97,9 @@ int main(void) {
   unsigned int sw0bit06[NCHANNELS_PER_K7_DB01] = {0, 11, 2,  5};       // these arrays encode the mapping of gain bits to I2C signals for DB06
   unsigned int sw1bit06[NCHANNELS_PER_K7_DB01] = {8, 10, 4,  6};
   unsigned int gnbit06[NCHANNELS_PER_K7_DB01]  = {9, 12, 1,  3};
+  unsigned int sw0bit08[NCHANNELS_PER_K7_DB01] = {6, 11, 4,  0};       // these arrays encode the mapping of gain bits to I2C signals for DB06
+  unsigned int sw1bit08[NCHANNELS_PER_K7_DB01] = {8, 2, 5,  10};
+  unsigned int gnbit08[NCHANNELS_PER_K7_DB01]  = {9, 12, 1,  3};
   unsigned int i2cgain[16] = {0}; 
   unsigned int cs[N_K7_FPGAS] = {CS_K0,CS_K1};
   int ch, k7, ch_k7;    // loop counter better be signed int  . ch = abs ch. no; ch_k7 = ch. no in k7
@@ -105,7 +108,6 @@ int main(void) {
   unsigned long long mac;
   unsigned int dip, sip;
   int sval;
-
 
   // *************** PS/PL IO initialization *********************
   // open the device for PD register I/O
@@ -189,12 +191,18 @@ int main(void) {
       NCHANNELS_PER_K7   =  NCHANNELS_PER_K7_DB01;
       ADC_CLK_MHZ        =  ADC_CLK_MHZ_DB06_500;    
   } 
+  if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)     // for now operate with 8 ch in SW/FW, even though only 4 are physically connected
+  {
+      NCHANNELS_PRESENT  =  NCHANNELS_PRESENT_DB02;
+      NCHANNELS_PER_K7   =  NCHANNELS_PER_K7_DB02;
+      ADC_CLK_MHZ        =  ADC_CLK_MHZ_DB04;    
+  } 
   if((revsn & PNXL_DB_VARIANT_MASK) == 0xF00000)      // no ADC DB: default to DB02
   {
-      printf("HW Rev = 0x%04X, SN = %d, NO ADC DB! - assuming default DB06_14_500\n", revsn>>16, revsn&0xFFFF);
-      NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB01;
-      NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB01;
-      ADC_CLK_MHZ       =  ADC_CLK_MHZ_DB06_500;
+      printf("HW Rev = 0x%04X, SN = %d, NO ADC DB! - assuming default DB04_14_250\n", revsn>>16, revsn&0xFFFF);
+      NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB02;
+      NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;
+      ADC_CLK_MHZ       =  ADC_CLK_MHZ_DB02;
   }
 
   NSAMPLES_PER_CYCLE =  (int)floor(ADC_CLK_MHZ/FILTER_CLOCK_MHZ); 
@@ -1308,7 +1316,8 @@ int main(void) {
             if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250) |
                 ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) | 
                 ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) |
-                ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250)    )
+                ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) |
+                ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)    )
             {
             // PN style PSA
                reglo = (fippiconfig.QDCLen0[ch]>>1)+1;                              //  FPGA expects "len/2 + 1" for effective "len" 
@@ -1378,7 +1387,8 @@ int main(void) {
             if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250) |
                 ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) |
                 ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) |
-                ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250)    )
+                ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) |
+                ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)    )
             {
             // PN style PSA
                reglo = (fippiconfig.QDCLen4[ch]>>1)+1;                              //  FPGA expects "len/2 + 1" for effective "len" 
@@ -1554,11 +1564,80 @@ int main(void) {
 
    } // end DB04
 
+   if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)    // DB08 has I2C DACs, 2 stuffing options, so program both
+   {
+
+      for(ch=0;ch<N_K7_FPGAS*NCHANNELS_PER_K7_DB02;ch++)
+      {
+         dacs[ch] = (int)floor( (1 - fippiconfig.VOFFSET[ch]/ V_OFFSET_MAX) * 32768);
+         if(dacs[ch] > 65535)  {
+            printf("Invalid VOFFSET = %f, must be between %f and -%f\n",fippiconfig.VOFFSET[ch], V_OFFSET_MAX-0.05, V_OFFSET_MAX-0.05);
+            // Note: this DAC maps from ini to PCB (at DAC) to 2xbuf output:  -1.2V  > 2.4V > 0.9V,  1.2V > 50 mV > -1.0V 
+            return -4300-ch;
+         }
+      }   // endfor channels
+
+      setdacs08(mapped, dacs);
+
+   } // end DB08
+
 
 
    // --------------------------- Gains ----------------------------------
 
-   // DB06 has 2 gains. Applied via I2C specific to each DB; 
+   // DB08 has 2 gains, 4 channels (but addressed as 2-5) Applied via I2C specific to each DB; 
+   // Two opamps can be enabled with SW0 (gain 2) and SW1 (gain 5)
+   // use 2.4 and 5.4 for easier compatibility to DB01
+
+         /* gain bit map for PXdesk+DB08
+        I2C bit   PXdesk DB signal      DB08 gain
+         0        IO_DB_5                SW0_D (enable low)
+         1        Gain_C                 unused
+         2        IO_DB_2                SW1_B (enable high)
+         3        Gain_D                 unused
+         4        IO_DB_3                SW0_C (enable low)
+         5        IO_DB_4                SW1_C (enable high)
+         6        IO_DB_N                SW0_A (enable low)
+         7        IO_DB_P                unused
+         8        IO_DB_0                SW1_A (enable high)
+         9        Gain_A                 unused
+         10       IO_DB_6                SW1_D (enable high)
+         11       IO_DB_1                SW0_B (enable low)
+         12       Gain_B                 unused
+         13       unused                 unused
+         14       unused                 unused
+         15       reserved (GOE)         unused
+         
+         =>  unsigned int sw0bit08[NCHANNELS_PER_K7_DB01] = {6, 11, 4, 0};     // these arrays encode the mapping of gain bits to I2C signals
+             unsigned int sw1bit08[NCHANNELS_PER_K7_DB01] = {8, 2, 5, 10};
+             unsigned int gnbit08[NCHANNELS_PER_K7_DB01]  = {9, 12, 1, 3};     // always off
+       */
+
+   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) )  {
+      // check if gains are valied for ALL channels
+      for( ch = 0; ch < NCHANNELS_PRESENT; ch ++ )
+      {
+           if( !( (fippiconfig.ANALOG_GAIN[ch] == DB01_GAIN1)  ||
+                  (fippiconfig.ANALOG_GAIN[ch] == DB01_GAIN3)   ) ) {
+           printf("ANALOG_GAIN = %f not matching available gains exactly, please choose from this list:\n",fippiconfig.ANALOG_GAIN[ch]);
+           printf("    %f \n",DB01_GAIN1);
+           printf("    %f \n",DB01_GAIN3);
+           return -8000-ch;
+         }  // end if
+       }    // end for
+
+       //  set the bits for FIRST 4 channels on DB08  
+       for( ch = 2; ch < NCHANNELS_PER_K7_DB01+2; ch ++ )            // XXXXXX K7 #0 XXXXXXXXXXXX
+       {
+         ch_k7 = ch-2;                                         
+         if(fippiconfig.ANALOG_GAIN[ch] == DB01_GAIN1)  { i2cgain[sw1bit08[ch_k7]] = 0; i2cgain[sw0bit08[ch_k7]] = 1; i2cgain[gnbit08[ch_k7]] = 0;  }
+         if(fippiconfig.ANALOG_GAIN[ch] == DB01_GAIN3)  { i2cgain[sw1bit08[ch_k7]] = 1; i2cgain[sw0bit08[ch_k7]] = 0; i2cgain[gnbit08[ch_k7]] = 0;  }
+       }    // end for
+
+   } //end DB08
+
+
+   // DB06 has 2 gains, 4 channels. Applied via I2C specific to each DB; 
    // Two opamps can be enabled with SW0 (gain 2) and SW1 (gain 5)
    // use 2.4 and 5.4 for easier compatibility to DB01
 
@@ -1579,14 +1658,15 @@ int main(void) {
          12       Gain_B                 unused
          13       unused                 unused
          14       unused                 unused
-         15       unused                 unused
+         15       reserved (GOE)         unused
          
          =>  unsigned int sw0bit06[NCHANNELS_PER_K7_DB01] = {0, 11, 2, 5};     // these arrays encode the mapping of gain bits to I2C signals
              unsigned int sw1bit06[NCHANNELS_PER_K7_DB01] = {8, 10, 4, 6};
              unsigned int gnbit[NCHANNELS_PER_K7_DB01]    = {9, 12, 1, 3};     // always off
        */
 
-   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) | ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) )  {
+   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) || 
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)  )  {
       // check if gains are valied for ALL channels
       for( ch = 0; ch < NCHANNELS_PRESENT; ch ++ )
       {
@@ -1643,7 +1723,7 @@ int main(void) {
          12       Gain_B                 Gain_B (relay)
          13       unused                 unused
          14       unused                 unused
-         15       unused                 unused
+         15       reserved (GOE)         unused
          
          =>  unsigned int sw0bit01[NCHANNELS_PER_K7_DB01] = {6, 11, 4, 0};       // these arrays encode the mapping of gain bits to I2C signals
              unsigned int sw1bit01[NCHANNELS_PER_K7_DB01] = {8, 2, 5, 10};
@@ -1713,8 +1793,19 @@ int main(void) {
 
    // ----------- done with first half of channels  ---------------------- 
 
+   //  set the bits for 4 MORE  channels for DB08  (addresses as ch 10-13)
+   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) ) {
+      for( ch = 10; ch < NCHANNELS_PER_K7_DB01+10; ch ++ )          // XXXXXX K7 #1 XXXXXXXXXXXX
+      {
+         ch_k7 = ch - 10;                                         
+         if(fippiconfig.ANALOG_GAIN[ch] == DB01_GAIN1)  { i2cgain[sw1bit08[ch_k7]] = 0; i2cgain[sw0bit08[ch_k7]] = 1; i2cgain[gnbit08[ch_k7]] = 0;  }
+         if(fippiconfig.ANALOG_GAIN[ch] == DB01_GAIN3)  { i2cgain[sw1bit08[ch_k7]] = 1; i2cgain[sw0bit08[ch_k7]] = 0; i2cgain[gnbit08[ch_k7]] = 0;  }
+      }    // end for
+   } //end DB08
+
    //  set the bits for 4 MORE  channels for DB06 
-   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) | ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) )  {
+   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) || 
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)  )  {
       for( ch = NCHANNELS_PER_K7_DB01; ch < 2*NCHANNELS_PER_K7_DB01; ch ++ )          // XXXXXX K7 #1 XXXXXXXXXXXX
       {
          ch_k7 = ch - NCHANNELS_PER_K7_DB01;                                         
@@ -1883,8 +1974,16 @@ int main(void) {
 
      if( ((revsn>>16)&0xF0) != (reglo & 0xF0) ) 
      {
-         printf(" Mismatch of main or daughter board per PROM (PCB_VERSION = 0x%04X) and Kintex firmware (FW_VERSION = 0x%04X)\n",(revsn>>16) & 0xFFFF, reglo & 0xFFFF);
-         mval = 0;
+         if( (((revsn>>16)&0xF0) == 0x0080) && ( (reglo & 0xF0)==0x0040) )
+         {
+            // ok, DB04 FW can be used for DB08
+            printf(" Using Kintex firmware (FW_VERSION = 0x--%02X) for DB08 (PCB_VERSION = 0x--%02X) \n", reglo & 0x00FF,(revsn>>16) & 0x00FF);
+         }
+         else
+         {
+            printf(" Mismatch of main or daughter board per PROM (PCB_VERSION = 0x%04X) and Kintex firmware (FW_VERSION = 0x%04X)\n",(revsn>>16) & 0xFFFF, reglo & 0xFFFF);
+            mval = 0;
+         }
      }
  
      if( (fippiconfig.RUN_TYPE == 0x404) && !( ((reglo & 0xFF)==0x42) ||  ((reglo & 0xF0)==0x60) ) ) 
@@ -1897,8 +1996,14 @@ int main(void) {
      mapped[AMZ_EXAFRD] = AK7_ADCFRAME;    // contains K7 FW_VERSION
      reglo = mapped[AMZ_EXDRD];
      if(SLOWREAD) reglo = mapped[AMZ_EXDRD];  
-     if( (reglo & 0xFF00) !=0x1F00)
-         printf(" Warning: Some ADC channels may be missing (no clock) \n");
+
+     if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)
+         mval = 0x1600;    // only 2 ADCs active for DB04
+     else
+         mval = 0x1F00;    // all 4 ADCs active
+     if( (reglo & 0xFF00) !=mval)
+         printf(" Warning: Some ADC channels may be missing (no clock, 0x%04x) \n", reglo);
+
      if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_125) | ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_75) )  
      {
          if( (reglo & 0xFF) != ADC_FRAME_DB01) printf(" Warning: ADC not properly initialized !\n");
@@ -1917,7 +2022,8 @@ int main(void) {
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) |
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) |
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) | 
-       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) )  {
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) | 
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) )  {
 
       // set clock input delay
       for(k7=0;k7<N_K7_FPGAS;k7++)
@@ -1944,13 +2050,13 @@ int main(void) {
          if(verbose) printf(" clk delay %d\n",mval);
       
       }  // end for N_K7_FPGAS 
-   }  // end DB06/04
+   }  // end DB06/04/08
    
    
    if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) | 
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) )  {
 
-      // set clock input delay
+      // set ADC programming
       for(k7=0;k7<N_K7_FPGAS;k7++)
       {
       

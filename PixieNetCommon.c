@@ -72,6 +72,7 @@
   ADCinit_DB01                [ok]     special steps required to initialize ADC DB01
   PLLinit                     [--]     special steps required to initialize WR PLL (low jitter version, now unused)
 
+  setdacs08                   [ok]     programs DAC values for DB08 (I2C)
   setdacs04                   [ok]     programs DAC values for DB04 (I2C)
   setdacs01                   [ok]     programs DAC values for DB01, DB06 (SPI)
   ADCSPI_Read06               [ok]     read ADC SPI, DB06
@@ -1082,6 +1083,11 @@ int read_print_runstats_XL_2x4(int mode, int dest, volatile unsigned int *mapped
       NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB01;
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB01;          
    }
+   if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)
+   {
+      NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB02;
+      NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;          
+   }
 
 
   // ---------------- open the output file -------------------------------------------
@@ -1840,7 +1846,11 @@ int read_print_rates_XL_2x4(int dest, volatile unsigned int *mapped ) {
       NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB01;
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB01;   
    }
-
+   if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)
+   {
+      NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB02;
+      NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;   
+   }
   // ---------------- open the output file -------------------------------------------
   if(dest != 1)  {
           fil = fopen("RATES.csv","w");
@@ -1940,6 +1950,55 @@ int read_print_rates_XL_2x4(int dest, volatile unsigned int *mapped ) {
  if(dest != 1) fclose(fil);
  return 0;
 }
+
+int setdacs08(volatile unsigned int *mapped, unsigned int *dacs) 
+{
+    // programming the AD5696 via DB-specific TWI interface
+    // dacs is 16x array with DAC values
+    // write address + 3 bytes
+    // byte 0: command (4 bits) + address (4bits)
+    // byte 1/2: 16bit DAC value, MSB first
+    int ch, k7, ch_k7;
+    unsigned int dac, dac_addr, dac_ctrl; 
+    unsigned int i2caddr[8], i2cctrl[8], i2cdataL[8], i2cdataH[8];
+    
+    mapped[AMZ_DEVICESEL] = CS_MZ;	  // select MZ controller
+
+    for(k7=0;k7<N_K7_FPGAS;k7++)
+    {
+        if(k7==0)
+          mapped[AAUXCTRL] = I2C_SELDB0;	  // select bit 5 -> DB0 I2C        // XXXXXX
+        else 
+          mapped[AAUXCTRL] = I2C_SELDB1;	  // select bit 6 -> DB1 I2C        // XXXXXX
+    
+        for( ch_k7 = 2; ch_k7 < (2+NCHANNELS_PER_K7_DB01) ; ch_k7 ++ )    //  DB08: programming channels 2-5 
+        {      
+            ch = ch_k7+k7*NCHANNELS_PER_K7_DB02;
+            dac = dacs[ch];
+            //printf("DACvalues[%d] = %d\n", ch, dac);      
+               
+            dac_addr = I2CW_DACA_DB08AD;
+            byte2array(dac_addr,i2caddr);       
+
+            // compensate for PCB channel swapping
+            if(ch_k7==2)     dac_ctrl = I2CW_DACC_DB08AD + (1<<1);       // channel 2 on each DB connects to DAC output B
+            if(ch_k7==3)     dac_ctrl = I2CW_DACC_DB08AD + (1<<2);       // channel 3 on each DB connects to DAC output C
+            if(ch_k7==4)     dac_ctrl = I2CW_DACC_DB08AD + (1<<0);       // channel 4 on each DB connects to DAC output A
+            if(ch_k7==5)     dac_ctrl = I2CW_DACC_DB08AD + (1<<3);       // channel 5 on each DB connects to DAC output D
+            byte2array(dac_ctrl,i2cctrl);
+
+            byte2array(( dac     & 0xFF),i2cdataL);
+            byte2array(((dac>>8) & 0xFF),i2cdataH);
+
+            I2Csend4bytes(mapped, i2caddr, i2cctrl, i2cdataH, i2cdataL); 
+ 
+        }   // end for (N channels)
+      } // end for (K7s)  
+
+      return(0);
+
+      // TODO: add in writing to the alternate LTX DAC also. The channels map differently than on DB04, can't use setdacs04 
+   } // end setdacs08
 
 
 int setdacs04(volatile unsigned int *mapped, unsigned int *dacs) 
@@ -2255,6 +2314,13 @@ int ramp_dacs( volatile unsigned int *mapped,          // address space for MZ I
       NGAINS            =  2;
       MAX_ADC           =  16383;
    } 
+   if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)
+   {
+      NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB02;
+      NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;
+      NGAINS            =  2; 
+      MAX_ADC           =  16383;
+   }
    if((revsn & PNXL_DB_VARIANT_MASK) == 0xF00000)      // no ADC DB: default to DB02
    {
       printf("HW Rev = 0x%04X, SN = %d, NO ADC DB! - assuming default DB02_12_250\n", revsn>>16, revsn&0xFFFF);
@@ -2327,7 +2393,14 @@ int ramp_dacs( volatile unsigned int *mapped,          // address space for MZ I
       if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250)
          setdacs04(mapped,DACvalues);
       else
-         setdacs01(mapped,DACvalues); 
+         if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)
+         {
+            setdacs08(mapped,DACvalues);
+         }
+         else
+         {
+            setdacs01(mapped,DACvalues); 
+         }
       //DAC settling time
       usleep(300000);
 

@@ -115,7 +115,8 @@ int main(void) {
    revsn = hwinfo(mapped,I2C_SELMAIN);    // some settings may depend on HW variants
    if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250) | 
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) | 
-       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) )
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) |
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) )
    {
       NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB02;
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;

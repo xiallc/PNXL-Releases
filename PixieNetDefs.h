@@ -34,7 +34,7 @@
  *----------------------------------------------------------------------*/
 
 // system constants
-#define PS_CODE_VERSION                   0x0331
+#define PS_CODE_VERSION                   0x0332
 #define PN_BOARD_VERSION_12_250_A         0xA990    
 #define PN_BOARD_VERSION_12_250_B         0xA991  
 #define PN_BOARD_VERSION_12_250_B_PTP     0xA981  
@@ -48,6 +48,7 @@
 #define PNXL_DB04_14_250                  0x00400000   // value for DB04 with 14/250 MHZ ADC
 #define PNXL_DB06_16_250                  0x00600000   // value for DB06 with 16/250 MHZ ADC
 #define PNXL_DB06_14_500                  0x00700000   // value for DB06 with 14/500 MHZ ADC
+#define PNXL_DB08_14_250                  0x00800000   // value for DB08 with 14/250 MHZ ADC
 #define PNXL_MB_REVA                      0x00000000   // value for Rev A Main board
 #define PNXL_MB_REVB                      0x00010000   // value for Rev B Main board
 #define PNXL_MB_10G                       0xA0000000   // value for 10G clocking
@@ -61,7 +62,8 @@
 #define ADC_CLK_MHZ_DB04                  250
 #define ADC_CLK_MHZ_DB06_250              250
 #define ADC_CLK_MHZ_DB06_500              500
- 
+#define ADC_CLK_MHZ_DB08_250              250
+
 #define SYSTEM_CLOCK_MHZ_DB01              75
 #define SYSTEM_CLOCK_MHZ_MOST             125
 
@@ -258,6 +260,9 @@
 #define I2CW_PFC_HIGH         0x48        // write to PFC chip for second 8 bits of gain/ GPIO
 #define I2CW_DACA_DB04        0x20        // write address to DAC chip for second 4 channels on DB04 (first 4:  +2)
 #define I2CW_DACC_DB04        0x30        // write control to DAC chip on DB04 (low 2 bits are [scrambled!] channel numbers 0-3)
+#define I2CW_DACA_DB08AD      0x18        // write address to AD5696 DAC chip on DB08 
+#define I2CW_DACC_DB08AD      0x30        // write command "write value and update" to AD5696 DAC chip on DB08 (add in channel in lower 4 bits) 
+
 
 // addresses in MZ controller - direct read/write
 #define AMZ_CSRIN             0x00
