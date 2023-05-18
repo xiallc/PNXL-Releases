@@ -99,7 +99,7 @@ int main( int argc, char *argv[] ) {
     return 1;
   }
 
-  //Lock the PL address space so multiple programs cant step on eachother.
+  //Lock the PL address space so multiple programs cant step on each other.
   if( flock( fd, LOCK_EX | LOCK_NB ) )
   {
     printf( "Failed to get file lock on /dev/uio0\n" );

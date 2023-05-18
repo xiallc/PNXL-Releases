@@ -225,6 +225,11 @@ typedef struct PixieNetFippiConfig {
   unsigned int TRIG_CONFIG1;
   unsigned int TRIG_CONFIG2;
   unsigned int TRIG_CONFIG3;
+  unsigned int GROUPMODE_K7;
+  unsigned int GATE_LENGTH;
+  unsigned int VETO_MODE;
+  unsigned int DYNODE_LENGTH;
+
   
   //Currently unused parameters.
   //unsigned int MOD_U3, MOD_U2, MOD_U1, MOD_U0;
@@ -255,11 +260,15 @@ typedef struct PixieNetFippiConfig {
    CCSRA_PILEUPCTRL_15  
    CCSRC_INVERSEPILEUP_00
   
-   CCSRC_ENAENERGYCUT_01  // Enable "no trace for large pulses" feature - 1: enable; 0: disable
-   CCSRC_GROUPTRIGSEL_02  // Group trigger selection - 1: external group trigger; 0: local fast trigger
-   CCSRC_CHANVETOSEL_03  // Channel veto selection - 1: channel validation trigger; 0: front panel channel veto
-   CCSRC_MODVETOSEL_04  // Module veto selection - 1: module validation trigger; 0: front panel module veto
-   CCSRC_EXTTSENA_05  // External timestamps in event header - 1: enable; 0: disable
+   CCSRC_ENAENERGYCUT_01   // Enable "no trace for large pulses" feature - 1: enable; 0: disable
+   CCSRC_GROUPTRIGSEL_02   // Group trigger selection - 1: external group trigger; 0: local fast trigger
+   CCSRC_CHANVETOSEL_03    // Channel veto selection - 1: channel validation trigger; 0: front panel channel veto
+   CCSRC_MODVETOSEL_04     // Module veto selection - 1: module validation trigger; 0: front panel module veto
+   CCSRC_EXTTSENA_05       // External timestamps in event header - 1: enable; 0: disable
+   CCSRC_RBADDIS_06        // disable the out-of-range test and rejection
+   CCSRC_PAUSEPILEUP_07    // pause pilup inspection for a short time after trigger
+   CCSRC_LOCAL_ENERGY_09   // Use local trigger for E filter capture even in group trigger mode 
+
 
    */
   unsigned int CHANNEL_CSRA[NCHANNELS]; //         180    180    180      180
@@ -305,17 +314,20 @@ typedef struct PixieNetFippiConfig {
   unsigned int QDCLen5[NCHANNELS];             //  ticks      QDC length #5 
   unsigned int QDCLen6[NCHANNELS];             //  ticks      QDC length #6 
   unsigned int QDCLen7[NCHANNELS];             //  ticks      QDC length #7 
-  double QDCDel0[NCHANNELS];             //  ticks      QDC delay #0       // use double because it can be negative. 
-  double QDCDel1[NCHANNELS];             //  ticks      QDC delay #1 
-  double QDCDel2[NCHANNELS];             //  ticks      QDC delay #2 
-  double QDCDel3[NCHANNELS];             //  ticks      QDC delay #3 
-  double QDCDel4[NCHANNELS];             //  ticks      QDC delay #4 
-  double QDCDel5[NCHANNELS];             //  ticks      QDC delay #5 
-  double QDCDel6[NCHANNELS];             //  ticks      QDC delay #6 
-  double QDCDel7[NCHANNELS];             //  ticks      QDC delay #7 
-  unsigned int QDC_DIV[NCHANNELS];             //        scaling factor for QDC sums 
-  unsigned int PSA_THRESHOLD[NCHANNELS];       //        threshold for PSA/QDC logic 
-  unsigned int EMIN[NCHANNELS];                //  minimum Energy (in final DSP units) for histogramming or LM output
+  double QDCDel0[NCHANNELS];                 //  ticks      QDC delay #0       // use double because it can be negative. 
+  double QDCDel1[NCHANNELS];                 //  ticks      QDC delay #1 
+  double QDCDel2[NCHANNELS];                 //  ticks      QDC delay #2 
+  double QDCDel3[NCHANNELS];                 //  ticks      QDC delay #3 
+  double QDCDel4[NCHANNELS];                 //  ticks      QDC delay #4 
+  double QDCDel5[NCHANNELS];                 //  ticks      QDC delay #5 
+  double QDCDel6[NCHANNELS];                 //  ticks      QDC delay #6 
+  double QDCDel7[NCHANNELS];                 //  ticks      QDC delay #7 
+  unsigned int QDC_DIV[NCHANNELS];           //        scaling factor for QDC sums 
+  unsigned int PSA_THRESHOLD[NCHANNELS];     //        threshold for PSA/QDC logic 
+  unsigned int EMIN[NCHANNELS];              //  minimum Energy (in final DSP units) for histogramming or LM output
+  unsigned int ELO[NCHANNELS];               // When E between ELO and EHI and enabled, issue logic pulse on MMCX output of length VETO_STRETCH
+  unsigned int EHI[NCHANNELS];  
+  unsigned int GROUPMODE_FIP[NCHANNELS];         // group trigger options
 
 } PixieNetFippiConfig;
 

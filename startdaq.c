@@ -128,7 +128,7 @@ int main(void) {
     return -2;
   }
 
-  //Lock the PL address space so multiple programs cant step on eachother.
+  //Lock the PL address space so multiple programs cant step on each other.
   if( flock( fd, LOCK_EX | LOCK_NB ) )
   {
     printf( "Failed to get file lock on /dev/uio0\n" );
@@ -336,7 +336,7 @@ int main(void) {
         for( ch = 0; ch < NCHANNEL_MAX400; ch++) {         // TODO: Runtype 0x400 records all channels as 0-3 (using lowest 2 bits), but tracelength in header is from ch.0-3)
             buffer1[6]   +=(int)floor((TL[ch]*TRACEENA[ch] + CHAN_HEAD_LENGTH_400) / BLOCKSIZE_400);         // combined event length, in blocks
             buffer1[8+ch] =(int)floor((TL[ch]*TRACEENA[ch] + CHAN_HEAD_LENGTH_400) / BLOCKSIZE_400);			// each channel's event length, in blocks
- //           printf( "N blocks %d \n",(int)floor((TL[ch]*TRACEENA[ch] + CHAN_HEAD_LENGTH_400) / BLOCKSIZE_400));
+          //  printf( "N blocks %d \n",(int)floor((TL[ch]*TRACEENA[ch] + CHAN_HEAD_LENGTH_400) / BLOCKSIZE_400));
         }
         fwrite( buffer1, 2, FILE_HEAD_LENGTH_400, fil );     // write to file
       }  
@@ -534,12 +534,12 @@ int main(void) {
 
   // disable MCA fifo output when not needed 
   mapped[AMZ_DEVICESEL] = CS_MZ;	// select MZ
-//  if( (fippiconfig.DATA_FLOW == 4) || (fippiconfig.DATA_FLOW == 5))  
-//      mapped[AMZ_RUNCTRL] = 0x0008;    // MCA FIFO enabled 
-//  else
+  if( (fippiconfig.DATA_FLOW == 4) || (fippiconfig.DATA_FLOW == 5))  
+      mapped[AMZ_RUNCTRL] = 0x0008;    // MCA FIFO enabled 
+  else
       mapped[AMZ_RUNCTRL] = 0x0000;    // MCA FIFO disabled
   // TODO: FIFO full check stops DAQ in DF=4 for 1G?
-   printf( "  Debug: MMFIFOFULL ignored\n");
+//   printf( "  Debug: MMFIFOFULL ignored\n");
  
   // finally, start run
   mapped[AMZ_CSRIN] = 0x0001;      // RunEnable=1 > nLive=0 (DAQ on)
@@ -799,14 +799,16 @@ int main(void) {
                     mapped[AMZ_EXDWR]  = PAGE_CHN+ch_k7;   //                         0x10n  = channel n     -> now addressing channel ch page of K7-0
                     
                     // read for nextevent
+                    /* WH 1/4/23: advance E fifo AFTER read now
                     // but in DF=3, moving data to UDP already advances the E fifo, so it's not needed  
-                    if(fippiconfig.DATA_FLOW < 3) {
+                    if(fippiconfig.DATA_FLOW < 3) {                     
                        mapped[AMZ_EXAFRD] = AK7_NEXTEVENT;              // select the "nextevent" address in channel's page
                        tmp0 = mapped[AMZ_EXDWR];                        // any read ok, advances E fifo 
 
             //           mapped[AMZ_EXAFRD] = AK7_HDRMEM_D;               // write to  k7's addr for read -> reading from AK7_HDRMEM_D channel header fifo, low 16bit  and advance FIFO
             //           tmp0 = mapped[AMZ_EXDRD];                        //any read ok for this dummy read
                     }
+                    */
       
                     // read 1 64bit word from header (CFD data requiring division, pileup info etc)
                     // by now,  E is computed in FPGA and is only calculated here in non-UDP mode 
@@ -882,6 +884,18 @@ int main(void) {
                        energyF = mapped[AMZ_EXDWR];                 // read 16 bits
                        if(SLOWREAD)  energyF = mapped[AMZ_EXDRD];   // read 16 bits
                        //if(eventcount<maxmsg) printf( "Read FPGA E: %d\n",energyF ); 
+
+
+                    // WH 1/4/23: advance E fifo AFTER read now
+                    // but in DF=3, moving data to UDP already advances the E fifo, so it's not needed  
+                    if(fippiconfig.DATA_FLOW < 3) {                     
+                       mapped[AMZ_EXAFRD] = AK7_NEXTEVENT;              // select the "nextevent" address in channel's page
+                       tmp0 = mapped[AMZ_EXDWR];                        // any read ok, advances E fifo 
+
+            //           mapped[AMZ_EXAFRD] = AK7_HDRMEM_D;               // write to  k7's addr for read -> reading from AK7_HDRMEM_D channel header fifo, low 16bit  and advance FIFO
+            //           tmp0 = mapped[AMZ_EXDRD];                        //any read ok for this dummy read
+                    }
+                    
 
 
                        // at this point, key data of event is known. Now can

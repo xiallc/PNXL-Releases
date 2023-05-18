@@ -117,7 +117,7 @@ int main(void) {
     return 1;
   }
 
-  //Lock the PL address space so multiple programs cant step on eachother.
+  //Lock the PL address space so multiple programs cant step on each other.
   if( flock( fd, LOCK_EX | LOCK_NB ) )
   {
     printf( "Failed to get file lock on /dev/uio0\n" );
@@ -498,7 +498,26 @@ int main(void) {
 
      // TRIG_CONFIG# -- not implemented for now
 
+     // check group mode       
+     if( (fippiconfig.GROUPMODE_K7 > 6) || (fippiconfig.GROUPMODE_K7 < 0)   )  {
+         printf("Invalid GROUPMODE_K7 = %d, must be between %d and %d \n",fippiconfig.GROUPMODE_K7, 0, 3);
+         return -3000;
+     }
 
+    if(fippiconfig.GATE_LENGTH >255 || fippiconfig.GATE_LENGTH <1 ) {
+      printf("Invalid GATE_LENGTH = %d, must be between 1 and 255 cycles",fippiconfig.GATE_LENGTH);
+      return -3100;
+    }
+
+    if(fippiconfig.VETO_MODE >6) {
+      printf("Invalid VETO_MODE = %d, must be <= 6",fippiconfig.VETO_MODE);
+      return -3200;
+    }
+
+    if(fippiconfig.DYNODE_LENGTH >255 || fippiconfig.DYNODE_LENGTH <1 ) {
+      printf("Invalid DYNODE_LENGTH = %d, must be between 1 and 255 cycles",fippiconfig.DYNODE_LENGTH);
+      return -3300;
+    }
 
   // ********** CHANNEL PARAMETERS ******************
    
@@ -907,12 +926,23 @@ int main(void) {
 
        } // end QDC ena
 
-      // EMIN can be used to cut outputs below a threshold of interest. TODO: use CSR bits to specify where cust occur      
+      // EMIN can be used to cut outputs below a threshold of interest. TODO: use CSR bits to specify where cuts occur      
       if( (fippiconfig.EMIN[ch] > 65535) || (fippiconfig.EMIN[ch] < 0)  )  {
          printf("Invalid EMIN = %d, must be between %d and %d \n",fippiconfig.EMIN[ch], 0, 65535);
          return -112000-ch;
       }
 
+      // check limits for Energy test in Fippi       
+      if( (fippiconfig.ELO[ch] > 65535) || (fippiconfig.EHI[ch] < 0) || (fippiconfig.EHI[ch] < fippiconfig.ELO[ch])  )  {
+         printf("Invalid ELO, EHI = %d, %d, must be between %d and %d \n",fippiconfig.ELO[ch], fippiconfig.ELO[ch], 0, 65535);
+         return -112000-ch;
+      }
+
+      // check group mode       
+      if( (fippiconfig.GROUPMODE_FIP[ch] > 3) || (fippiconfig.GROUPMODE_FIP[ch] < 0)   )  {
+         printf("Invalid GROUPMODE_FIP = %d, must be between %d and %d \n",fippiconfig.GROUPMODE_FIP[ch], 0, 3);
+         return -112000-ch;
+      }
 
 
  
@@ -921,7 +951,7 @@ int main(void) {
 
    // -------------- now package  and write -------------------
 
-   // CONTROLLER REGISTERS IN MZ
+   // - - - - CONTROLLER REGISTERS IN MZ - - - -
    mapped[AMZ_DEVICESEL] = CS_MZ;	  // select MicroZed Controller
 
   
@@ -1134,10 +1164,45 @@ int main(void) {
       // set the USER_PACKET_DATA
       mval=fippiconfig.USER_PACKET_DATA; 
       mapped[AMZ_EXAFWR] =  AK7_USR_PCK_DATA;              // specify   K7's addr:    AK7_USR_PCK_DATA
-      mapped[AMZ_EXDWR]  =  mval;   
+      mapped[AMZ_EXDWR]  =  mval;  
+ 
+       // ................ Trigger mode setting .............................
+
+      mval=fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7];
+      mval=mval + (fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+1]<<8); 
+      mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB;              // specify   K7's addr:    AK7_GROUPMODE_AB
+      mapped[AMZ_EXDWR]  =  mval;  
+      
+      mval=fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+2];
+      mval=mval + (fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+3]<<8); 
+      mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB+1;              // specify   K7's addr:    AK7_GROUPMODE_AB
+      mapped[AMZ_EXDWR]  =  mval;  
+
+      if(NCHANNELS_PER_K7>4)
+      {
+         mval=fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+4];
+         mval=mval + (fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+5]<<8); 
+         mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB+2;              // specify   K7's addr:    AK7_GROUPMODE_AB
+         mapped[AMZ_EXDWR]  =  mval;  
+         
+         mval=fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+6];
+         mval=mval + (fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+7]<<8); 
+         mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB+3;              // specify   K7's addr:    AK7_GROUPMODE_AB
+         mapped[AMZ_EXDWR]  =  mval; 
+      }
+
+      mval=fippiconfig.GROUPMODE_K7;
+      mval=mval + (fippiconfig.VETO_MODE<<8); 
+      mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_K7;              // specify   K7's addr:    AK7_GROUPMODE_K7
+      mapped[AMZ_EXDWR]  =  mval; 
+
+      mval=fippiconfig.GATE_LENGTH;
+      mval=mval + (fippiconfig.DYNODE_LENGTH<<8); 
+      mapped[AMZ_EXAFWR] =  AK7_GATE_LENGTH;              // specify   K7's addr:    AK7_GATE_LENGTH
+      mapped[AMZ_EXDWR]  =  mval; 
 
    
-      // CHANNEL REGISTERS IN K7
+      // - - - - CHANNEL REGISTERS IN K7 - - - - 
       for( ch_k7 = 0; ch_k7 < NCHANNELS_PER_K7 ; ch_k7 ++ )
       {
          ch = ch_k7+k7*NCHANNELS_PER_K7;            // pre-compute channel number for data source  
@@ -1237,16 +1302,18 @@ int main(void) {
          reglo = 4096 - (int)(fippiconfig.CHANTRIG_STRETCH[ch]*FILTER_CLOCK_MHZ);               //  ChanTrigStretch goes into [11:0] of FipReg2   // in us
          reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_FTRIGSEL,   SelExtFastTrig   );    
          if(traceena) reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_TRACEENA,    FiPPI_TRACEENA   );   // add trace enable bit only in run types with trace capture  
-         reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_QDCENA,      FiPPI_QDCENA   );  
-         reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_CFDMODE,     FiPPI_CFDMODE   );   
-         reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_GLOBTRIG,    FiPPI_GLOBTRIG   );     
-         reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_CHANTRIG,    FiPPI_CHANTRIG   );    
-         reglo = reglo + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_RBADDIS,     FiPPI_RBADDIS   );     
+         reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_QDCENA,       FiPPI_QDCENA   );  
+         reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_CFDMODE,      FiPPI_CFDMODE   );   
+         reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_GLOBTRIG,     FiPPI_GLOBTRIG   );     
+         reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_CHANTRIG,     FiPPI_CHANTRIG   );  
+         reglo = reglo + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_PAUSE_PILEUP, FiPPI_PAUSE_PILEUP   );  
+         reglo = reglo + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_RBADDIS,      FiPPI_RBADDIS   );     
 
          mval = 4096 - (int)(fippiconfig.VETO_STRETCH[ch]*FILTER_CLOCK_MHZ);
          reglo = reglo + (mval <<20);       //Store VetoStretch in bits [31:20] of Fipreg2   // in us
          
-         reghi = ch & 0xF;                                                                           // channel ID in bits [3:0]     ([35:32] in 64 bit) 
+         reghi = ch & 0xF;                                                                           // channel ID in bits [3:0]     ([35:32] in 64 bit)  
+         reghi = reghi + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_LOCAl_ENERGY,  FiPPI_LOCAl_ENERGY   );    
          reghi = reghi + ( (4096 - (int)(fippiconfig.FASTTRIG_BACKLEN[ch]*FILTER_CLOCK_MHZ)) <<8);   //  FastTrigBackLen goes into [19:8] ([51:40] in 64 bit)   // in us
          reghi = reghi + ( (4096 - (int)(fippiconfig.EXTTRIG_STRETCH[ch]*FILTER_CLOCK_MHZ)) <<20);   //  ExtTrigStretch goes into [31:20] ([63:52] in 64 bit)   // in us
          
@@ -1511,6 +1578,17 @@ int main(void) {
          mapped[AMZ_EXAFWR] = AK7_P16REG_C1+1;               // write to  k7's addr to select channel's register N+1    
          mapped[AMZ_EXDWR]  = reglo >> 16;                   // write next 16 bit                                       
 
+         // ......... E limit Regs  ....................... 
+
+         reglo = fippiconfig.ELO[ch];                       // lower limit
+         reghi = fippiconfig.EHI[ch];                       // upper limit                                                         
+         
+         // now write 
+         mapped[AMZ_EXAFWR] = AK7_P16REG_ELO;               // write to  k7's addr to select channel's register N      
+         mapped[AMZ_EXDWR]  = reglo;                        // write lower 16 bit                                      
+         mapped[AMZ_EXAFWR] = AK7_P16REG_EHI;               // write to  k7's addr to select channel's register N+1    
+         mapped[AMZ_EXDWR]  = reghi;                        // write next 16 bit                                       
+         
          
       }  // end for NCHANNEL_PER_K7
 
@@ -1789,6 +1867,7 @@ int main(void) {
    {
       i2cdata[k] = i2cgain[k+8];
    }
+   i2cdata[7] = 1;   // GOE bit
    I2Csend3bytes(mapped, i2caddr, i2cdata, i2cdata); 
 
    // ----------- done with first half of channels  ---------------------- 
@@ -1852,6 +1931,7 @@ int main(void) {
     {
       i2cdata[k] = i2cgain[k+8];
     }
+     i2cdata[7] = 1;   // GOE bit
     I2Csend3bytes(mapped, i2caddr, i2cdata, i2cdata); 
     
     // ----------- done with second half of channels  ---------------------- 
@@ -1863,6 +1943,7 @@ int main(void) {
 
    // restart/initialize filters 
    usleep(100);      // wait for filter FIFOs to clear, really should be longest SL+SG
+
    for(k7=0;k7<N_K7_FPGAS;k7++)
    {
       mapped[AMZ_DEVICESEL] =  cs[k7];	// select FPGA 
@@ -1879,6 +1960,7 @@ int main(void) {
       }
    }
    usleep(100);      // really should be longest SL+SG
+
  //  mapped[ADSP_CLR] = 1;
    mapped[ARTC_CLR] = 1;
 
@@ -1934,21 +2016,40 @@ int main(void) {
 
    mval = 1;   // assume no mismatch 
 
+   // 1)  PCB_VERSION and Zynq HW_VERSION (indicates HW compatibility)
+   //     for example, PCB_VERSION 0xA1#2 (Pixie-Net XL Rev C, with DB=#) must use Zynq FW designed for HW 0xA102.  
+   //     Zynq FW does not care for the DB #, so it's always 0 and masked out in the test
+   //     First digit of PCB_VERSION varies with board configuration (A = std 10G, B = 1G WR, C = TTCL 10G, D = 10G + PZ WR)
+   //     First digit of Zynq HW_VERSION varies with Zynq model: A= MZ, D = PZ, E = ZT)
+   //     Exceptions: HW changes in Pixie-Net XL Rev C do not affect controller (at this point) so ok to use HW_VERSION 0x---1 with PCB_VERSION 0x---2
    revsn = hwinfo(mapped,I2C_SELMAIN);    // contains PCB_VERSION
    mapped[AMZ_DEVICESEL] = CS_MZ;         
    reglo = mapped[AMZ_HW_VER];            // contains MZ HW_VERSION
-   if( ((revsn>>16)&0x0F0F) != (reglo & 0x0F0F)) 
+   if( ((revsn>>16)&0x0F0F) != (reglo & 0x0F0F))                      
    {
-      printf(" Mismatch of main board per PROM (PCB_VERSION = 0x%04X) and Zynq controller firmware (HW_VERSION = 0x%04X)\n",(revsn>>16) & 0xFFFF, reglo & 0xFFFF);
-      mval = 0;
+      if(    (((revsn>>16)&0x000F)==2) && ((reglo&0x000F)==1)  )
+      {
+         // exception: board Rev C (2) is ok with MZ for rev B (1)
+      } else {
+         printf(" Mismatch of main board per PROM (PCB_VERSION = 0x%04X) and Zynq controller firmware (HW_VERSION = 0x%04X)\n",(revsn>>16) & 0xFFFF, reglo & 0xFFFF);
+         mval = 0;
+      }
    }
 
-   reglo = mapped[AMZ_FW_VER];           // contains MZ FW_VERSION
+   // 2) PS_CODE_VERSION and Zynq FW_VERSION (indicates compatibility between SW and Zynq FW)
+   //    for example, PS_CODE_VERSION 0x03XY must use FW_VERSION 0xXY#Z
+   //    XY are incremented for every release. But one code may lag behind the other, so difference in Y is allowed
+   //    FW_VERSION includes placeholder for DB #
+   //    FW_VERSION last digit indicates custom code variant 
+   //    Exceptions: Zynq FW_VERSION 0x25 -- can still be used with  PS_CODE_VERSION 0x033x, except for DB08
+   reglo = mapped[AMZ_FW_VER];           // contains MZ FW_VERSION   
    if( (PS_CODE_VERSION&0xF0) != ((reglo>>8) & 0xF0) ) 
    {
       if( (reglo == 0x2500) &&  ((PS_CODE_VERSION & 0xFF0) == 0x0330) )
+      {
          // no error
-          mval = mval ;
+         mval = mval ;
+      }
       else
       {
          printf(" Mismatch of SW (PS_CODE_VERSION = 0x%04X) and Zynq controller firmware (FW_VERSION = 0x%04X)\n",PS_CODE_VERSION, reglo & 0xFFFF);
@@ -1956,6 +2057,17 @@ int main(void) {
       }
    }
 
+   // 2a) Zynq FW_VERSION and DB #
+   //     Contrary to above, Zynq FW 0x25-- does not know about DB08 and higher
+   revsn = hwinfo(mapped,I2C_SELDB1);    // contains DB #
+   if( (reglo == 0x2500) && (((revsn>>16)&0x00F0) > 0x0070) )
+   {
+      printf(" Mismatch of DB type (0x%04X) and Zynq controller firmware (FW_VERSION = 0x%04X)\n",(revsn>>16), reglo & 0xFFFF);
+      mval = 0; 
+   }
+
+   
+   revsn = hwinfo(mapped,I2C_SELMAIN);    // contains PCB_VERSION
    for(k7=0;k7<N_K7_FPGAS;k7++)
    {
 
@@ -1966,12 +2078,21 @@ int main(void) {
      mapped[AMZ_EXAFRD] = AK7_SYS_FW_VER;    // contains K7 FW_VERSION
      reglo = mapped[AMZ_EXDRD];
      if(SLOWREAD) reglo = mapped[AMZ_EXDRD];   
+
+     // 3) PS_CODE_VERSION and Kintex FW_VERSION (indicates compatibility between SW and Kintex FW)
+     //    for example, PS_CODE_VERSION 0x03XY must use FW_VERSION 0xXY#Z
+     //    XY are incremented for every release. But one code may lag behind the other, so difference in Y is allowed
+     //    FW_VERSION includes placeholder for DB #
+     //    FW_VERSION last digit indicates custom code variant 
      if( (PS_CODE_VERSION&0xF0) != ((reglo>>8) & 0xF0) ) 
      {
          printf(" Mismatch of SW (PS_CODE_VERSION = 0x%04X) and Kintex firmware (FW_VERSION = 0x%04X)\n",PS_CODE_VERSION, reglo & 0xFFFF);
          mval = 0;
      }
 
+     // 4) PCB_VERSION and Kintex FW_VERSION (indicates HW compatibility for DB #)
+     //    for example, PCB_VERSION A1#2 must match FW_VERSION 0xXY#Z in the # field
+     //    Exceptions: DB04 FW works also for DB08
      if( ((revsn>>16)&0xF0) != (reglo & 0xF0) ) 
      {
          if( (((revsn>>16)&0xF0) == 0x0080) && ( (reglo & 0xF0)==0x0040) )
@@ -1986,6 +2107,8 @@ int main(void) {
          }
      }
  
+     // 5) Special tests
+     // a) Runtype 0x404 only supported in special FW variants
      if( (fippiconfig.RUN_TYPE == 0x404) && !( ((reglo & 0xFF)==0x42) ||  ((reglo & 0xF0)==0x60) ) ) 
      {
          printf(" Runtype 0x404 only supported for FW version 0x__42 or 0x__6_\n");
@@ -2034,10 +2157,14 @@ int main(void) {
          mapped[AMZ_EXDWR]     = PAGE_SYS;             // 0x000  = system page                
           
          mval = 15; // default
+         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) 
+           mval = 15;                                 // ADC clk delay 
          if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) 
            mval = 10;                                 // ADC clk delay 
          if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) 
-           mval = 15;                                 // ADC clk delay 
+           mval = 20;   // 20 for -R 15 for generic variant         // ADC clk delay 
+         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) 
+           mval = 20;                                 // ADC clk delay 
           
          mapped[AMZ_EXAFWR]    = AK7_ADCBITSLIP;       // write to  k7's addr     addr 0x06 for clk and data delay
          mapped[AMZ_EXDWR]     = mval;                 // write to ADC_delay register to set values
@@ -2071,6 +2198,43 @@ int main(void) {
             //mval = 0xA0;   // turn on ramp
             mval = 0x00;     //turn off ramp
             ADCSPI_Write06(mapped, k7, ch_k7, 0xC0, mval); // coarse offset, core 1
+         }
+          
+         // if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)   {
+         // -------------------------- I2E calibration  -------------------------------------
+         // *********************** run adcinit instead ********************************** 
+        
+       }  // end for N_K7_FPGAS 
+   }  // end DB06
+                                  
+
+   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) | 
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) | 
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250) | 
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) )  {
+
+      // set ADC programming
+      for(k7=0;k7<N_K7_FPGAS;k7++)
+      {
+      
+        // -------------------------- debug only -------------------------------------
+      
+        //  enable/disable  ADC's test ramp
+        //     switch ADC output to ramp :        data/addr = 0x0F / 0x000D 
+        //     switch ADC output to signal :      data/addr = 0x00 / 0x000D 
+             
+         for( ch_k7 = 0; ch_k7 < 4 ; ch_k7 ++ )       // always program 4 ADC chips, most settings apply to both channels
+         {
+           //mval = 0x0F;   // turn on ramp
+             mval = 0x04;   // turn on "checkerboard" 0xAAA/3555
+             mval = 0x00;     //turn off ramp
+            ADCSPI_Write06(mapped, k7, ch_k7, 0x0D, mval); 
+            // 8 bits for address only (upper 8 bits are control or all zero for this ADC)
+            // 8 bits for data only
+            if(mval>0) printf(" turning on test ramp\n");
+
+            mval = 0x01;     // transfer enable bit
+            ADCSPI_Write06(mapped, k7, ch_k7, 0xFF, mval);       // write to the transfer register to apply
          }
           
          // if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)   {

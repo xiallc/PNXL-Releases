@@ -617,6 +617,8 @@ Function PSA_ReadEvent()
 	Eventvalues[5] = LMeventheader[iPSAsum1]	// Q1 sum from DSP				UserRetVal +4
 	Eventvalues[8] = LMeventChannel
 
+
+
 	// PSA values
 	// for run types reporing only raw PSA values, recompute here
 	if(iPSAresult<0)
@@ -684,7 +686,7 @@ Function PSA_ReadEvent()
 	if( (runtype==0x404) )
 	
 		wave LMfileheader =  root:pixie4:LMfileheader
-		wave LMeventheader = root:pixie4:LMeventheader116
+		wave LMeventheader = root:pixie4:LMeventheader
 	
 		Eventvalues[8] = LMeventheader[16]	  	// channel number
 		if(Allchannels)
@@ -739,12 +741,12 @@ Function PSA_ReadEvent()
 		
 		base_scaled = LMeventheader[18+off]
 		
-		Eventvalues[2] = LMeventheader[19+off]	- 	base_scaled	// amplitude from DSP      		UserRetVal +1
-		Eventvalues[3] = LMeventheader[18+off] 					// baseline sum from DSP  	UserRetVal +2	
-		// for UDP output, values are not BL subtracted. We assume here the "4" is the usual scaling factor, but could be 32
-		Eventvalues[4] = 0 //LMeventheader[10+off] - base_scaled*LoQ0/4  // Q0 sum from ARM			UserRetVal +3		
-		Eventvalues[5] = 0 //LMeventheader[11+off] - base_scaled*LoQ1/4		
-		Eventvalues[6] = 0 //	Eventvalues[4] / Eventvalues[5]	// PSA Value  Q1/Q0
+	//	Eventvalues[2] = LMeventheader[19+off]	- 	base_scaled	// amplitude from DSP      		UserRetVal +1
+	//	Eventvalues[3] = LMeventheader[18+off] 					// baseline sum from DSP  	UserRetVal +2	
+	//	// for UDP output, values are not BL subtracted. We assume here the "4" is the usual scaling factor, but could be 32
+	//	Eventvalues[4] = 0 //LMeventheader[10+off] - base_scaled*LoQ0/4  // Q0 sum from ARM			UserRetVal +3		
+	//	Eventvalues[5] = 0 //LMeventheader[11+off] - base_scaled*LoQ1/4		
+	//	Eventvalues[6] = 0 //	Eventvalues[4] / Eventvalues[5]	// PSA Value  Q1/Q0
 		
 		Eventvalues[30] =  LMeventheader[19+off]	// debug: maximum
 		EventvalueNames[30] = "maximum (FPGA)"	

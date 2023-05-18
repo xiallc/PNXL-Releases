@@ -35,6 +35,7 @@ Function Pixie_File_ReadEvent()
 	Nvar tracesinpxp = root:pixie4:tracesinpxp
 	Nvar messages = root:pixie4:messages
 	Nvar ModuleType = root:pixie4:ModuleType
+//	Nvar  TSscale = root:LM:TSscale
 
 	
 	// local variables
@@ -377,28 +378,7 @@ Function Pixie_File_ReadEvent()
 		endfor 
 		
 		// read the trace(s)			
-		if(ModuleType>0)		// extract sampling rate from DB type 
-			if((ModuleType&0x0FF0)==0x0110)
-				WFscale = 8
-			elseif((ModuleType&0x0FF0)==0x0120)
-				WFscale = 4
-			elseif((ModuleType&0x0FF0)==0x0140)
-				WFscale = 4
-			elseif((ModuleType&0x0FF0)==0x0150)
-				WFscale = 4					
-			elseif((ModuleType&0x0FF0)==0x0160)
-				WFscale = 4
-			elseif((ModuleType&0x0FF0)==0x0170)
-				WFscale = 2
-			elseif((ModuleType&0x0FF0)==0x0180)
-				WFscale = 4	
-			elseif((ModuleType&0x0FF0)==0x0190)
-				WFscale = 4
-			endif
-		else
-			//print "Can not get waveform sampling interval from file, using the user provided number"						
-		endif
-		wftimescale = WFscale*1e-9	// use [updated] panel value
+		// wftimescale set by LMheadernames functions
 		
 		for(i=0; i<NumberOfChannels; i+=1)				// loop over all channels
 			wav="root:pixie4:trace"+num2str(i)
@@ -1383,6 +1363,7 @@ Function Pixie_File_ReadAsList4xx()
 	// define source waves created by Pixie_File_ReadRawLMdata function
 	Wave wfarray
 	Wave LMheader
+	Nvar iMType = root:pixie4:iMType 
 	Nvar iHitL  = root:pixie4:iHitL 
 	Nvar iHitM  = root:pixie4:iHitM 
 	Nvar iTimeL = root:pixie4:iTimeL 
@@ -1403,6 +1384,7 @@ Function Pixie_File_ReadAsList4xx()
 	Nvar iCFDsum2   = root:pixie4:iCFDsum2  
 	Nvar evsize    =  root:pixie4:evsize
 	Nvar runtype = root:pixie4:runtype
+
 
 	// find number of events
 	Nvar oldNevents = root:LM:oldNevents 				// remember previous number of events
@@ -1477,9 +1459,11 @@ Function Pixie_File_ReadAsList4xx()
 			LocTime3[no] 	= wfarray[20][no]+65536*wfarray[21][no]
 		else
 			chnum[no] = wfarray[iChannel][no]
-			energy[no] = wfarray[iEnergy][no]
-			if(runtype==0x400)
-				currentCFD = wfarray[iCFDresult][no]
+			energy[no] = wfarray[iEnergy][no]	
+			
+			if(runtype==0x400)	
+				// TODO: Pixie-Net XL's 0x400 CFD result is in P16 0x100 format!		
+				currentCFD = -1* wfarray[iCFDresult][no]/256	//in ns
 			endif
 			if(runtype==0x404)
 				currentCFD = 0	// 0x404 has no CFD entry
@@ -1579,6 +1563,7 @@ Function Pixie_File_ReadAsList11x()
 	Nvar iCFDsum2   = root:pixie4:iCFDsum2  
 	Nvar evsize    =  root:pixie4:evsize
 	Nvar runtype   = root:pixie4:runtype
+	Nvar WFscale = root:pixie4:WFscale
 
 
 	// find number of events
@@ -1612,7 +1597,7 @@ Function Pixie_File_ReadAsList11x()
 	Wave CFD3 = $(text+":CFD3")			
 	
 	//Variable runtype = LMheader[2]	
-	Variable no, ModuleType, WFscale
+	Variable no, ModuleType
 	Variable lastE0, lastE1, lastE2, lastE3		// store "last" E, T, CFD value and copy in current event record
 	Variable lastT0, lastT1, lastT2, lastT3		// so that they can be matched across subsequent events in 0x400
 	Variable lastC0, lastC1, lastC2, lastC3, currentCFD
@@ -1652,39 +1637,20 @@ Function Pixie_File_ReadAsList11x()
 			currentCFD = Pixie_Math_CFDfrom4raw(no)		// technically the 0x111 format has a final CFD field, but it is unlikely to be valid. use raw data and compute 
 		elseif(runtype==0x116)
 			
-		
-			if(iMType>0)		// extract sampling rate from DB type 
-				ModuleType = wfarray[iMType][no]
-				if((ModuleType&0x0FF0)==0x0110)
-					WFscale = 8
-				elseif((ModuleType&0x0FF0)==0x0120)
-					WFscale = 4
-				elseif((ModuleType&0x0FF0)==0x0140)
-					WFscale = 4
-				elseif((ModuleType&0x0FF0)==0x0150)
-					WFscale = 4					
-				elseif((ModuleType&0x0FF0)==0x0160)
-					WFscale = 4
-				elseif((ModuleType&0x0FF0)==0x0170)
-					WFscale = 2
-				elseif((ModuleType&0x0FF0)==0x0180)
-					WFscale = 4	
-				elseif((ModuleType&0x0FF0)==0x0190)
-					WFscale = 4
-				endif
-			else
-				WFscale = 4
-				//print "Can not get waveform sampling interval from file, using the user provided number"						
-			endif
 			
-			if(WFscale==4)	// TODO: this timescale does not seem quite right
-				currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) / 16384 * 4 // in ns
-			elseif(WFscale==8)
-				currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) / 32768 * 8 // in ns
-			elseif(WFscale==2)
-				currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) /  8192 * 2 // in ns	
-			else
-				currentCFD = 0 	//invalid WFscale
+			//if(0)
+			if(wfarray[iCFDresult][no]>0)	// CFD result computed, likely P16 0x100 with CFD enabled in DF=2
+				if(WFscale==4)	// TODO: this timescale does not seem quite right
+					currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) / 16384 * 4 // in ns
+				elseif(WFscale==8)
+					currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) / 32768 * 8 // in ns
+				elseif(WFscale==2)
+					currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) /  8192 * 2 // in ns	
+				else
+					currentCFD = 0 	//invalid WFscale
+				endif
+			else	// CFD result NOT computed, likely P16 0x105 with CFD enabled in DF=4
+				currentCFD = Pixie_Math_CFDfrom4raw(no)
 			endif
 		else
 			currentCFD = 0 	//iCFDresult	not valid, no raw data. includes 0x110
@@ -1779,7 +1745,7 @@ Variable newfile
 	Nevents = MaxEvents	
 	
 	// options
-	Nvar  TSscale = root:LM:TSscale
+//	Nvar  TSscale = root:LM:TSscale
 
 	// local variables
 	Variable no, ret, ch
@@ -1835,7 +1801,7 @@ Variable newfile
 	
 		
 	for(no=0;no<MaxEvents;no+=1)
-		if (mod(no,10000)==0)
+		if (mod(no,1000)==0)
 			print "reading event #",no
 			DoUpdate
 		endif
@@ -1874,7 +1840,7 @@ Variable newfile
 				lastC2 = CFDtime[no]
 			endif
 	
-			if((0x3 & chnum[no])==2)
+			if((0x3 & chnum[no])==3)
 				lastE3 = energy[no]
 				lastT3 =  TrigTimeL[no]
 				lastC3 = CFDtime[no]	
@@ -1906,6 +1872,13 @@ Variable newfile
 	Nevents = no	
 	
 	print Nevents, "total"
+	
+	Svar CFDsource  =  root:LM:CFDsource
+	Nvar RTlow = root:LM:RTlow
+	//CFDsource = "FPGA (4w raw)"
+	//CFDsource = "DSP/ARM (1w fraction)"
+	//CFDsource = "none"
+	CFDsource = "Igor, cfd = "+num2str(RTlow)
 	
 	
 End

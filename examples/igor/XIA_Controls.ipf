@@ -223,6 +223,7 @@ Function Pixie_Ctrl_CommonButton(ctrlName) : ButtonControl
 			String wavesinplot, wfname
 			Variable Nwaves, m
 			Nvar RTlow = root:LM:RTlow
+			Svar CFDsource  =  root:LM:CFDsource
 			Execute "Pixie_Plot_Thisto()"
 			wavesinplot = TraceNameList("Tdiffhisto",",",1)
 			Nwaves = ItemsInList(wavesinplot,",")
@@ -235,7 +236,10 @@ Function Pixie_Ctrl_CommonButton(ctrlName) : ButtonControl
 					endif
 					if(WaveExists(histo)==1)
 						CurveFit/q/NTHR=0/TBOX=0 gauss histo [pcsr(A),pcsr(B)] /D 
-						print wfname,": peak position (ns):",W_Coef[2], "FWHM (ps):",W_coef[3]*2*sqrt(ln(2))*1000,"(cfd =",RTlow,")"
+						//print wfname,"(CFD from", CFDsource,", Igor cfd =",RTlow,")"
+						print wfname,"- CFD from", CFDsource
+						print "peak position (ns):",W_Coef[2] 
+						print "FWHM (ps):",W_coef[3]*2*sqrt(ln(2))*1000
 					endif
 				endif
 			endfor

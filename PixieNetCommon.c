@@ -429,7 +429,7 @@ unsigned int hwinfo( volatile unsigned int *mapped, unsigned int I2Csel)
       //I2Cmasterack(mapped);
       I2Cmasternoack(mapped);
       I2Cstop(mapped);
-   
+                                            // if mval = FFFF (no DB), insert a default for the return?
       revsn = revsn | ((mval & 0x00F0)<<16);
   }
 

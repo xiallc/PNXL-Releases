@@ -594,7 +594,7 @@ Function Pixie_Tdiff_compute_diff()
 	
 
 	if(DiffA_CFD)
-		TdiffA =TSscale*(  PA - NA)  - PD + ND	// include CFD time scaled in ns
+		TdiffA =TSscale*(  PA - NA)  + PD - ND	// include CFD time scaled in ns
 	else
 		TdiffA =TSscale*(PA -  NA)	// in ns  TSscale*abs(PA -  NA)	// in ns
 	endif
@@ -1055,11 +1055,11 @@ Variable no // event number in wfarray
 	// compute as fraction of sample for now
 	cfd = ph
 	if(cfdsrc)
-		cfd=cfd+1
+		cfd=cfd-1		// CHECK: should be +1 but perhaps sample order is swapped in FPGA and so -1 is correct
 	endif
 							
 
-	if(cfdfrc)		// resut invalid if "forced"
+	if(cfdfrc)		// result invalid if "forced"
 		cfd=0
 	endif
 	
@@ -1097,7 +1097,7 @@ Variable no // event number in wfarray
 	// compute as fraction of sample for now
 	cfd = ph
 	if(cfdsrc)
-		cfd=cfd+1
+		cfd=cfd-1		// CHECK: should be +1 but perhaps sample order is swapped in FPGA and so -1 is correct
 	endif
 							
 
@@ -1120,10 +1120,11 @@ End
 Function Pixie_Math_CFDfromTrace(ch)
 Variable ch
 
-	Nvar defaultTriggerPos = root:LM:defaultTriggerPos	//Nvar defaultTriggerPos = root:LM:defaultTriggerPos
+	//Nvar defaultTriggerPos = root:LM:defaultTriggerPos	//Nvar defaultTriggerPos = root:LM:defaultTriggerPos
 	Nvar LB = root:LM:LB					//Nvar LB =  root:LM:LB //= 12 // length of baseline sum
 	Nvar RTlow =  root:LM:RTlow				//Nvar RTlow = root:LM:RTlow //= 0.1
 		
+		Variable defaultTriggerPos =0
 	String wav, wv2
 	
 	Variable maxlocA,  npntsA, rms, goodevent, cfdt

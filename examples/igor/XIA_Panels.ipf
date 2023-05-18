@@ -253,7 +253,9 @@ Function Pixie_Panel_LM() : Panel
 		
 		Button Table_LMList,pos={ctrlx, filey},size={buttonx/2,20},proc=Pixie_Ctrl_CommonButton,title="Open Data Table"
 		Button Table_LMList,help={"Open Table with imported raw data"}, fsize=11	,font="arial"
+		SetVariable oup01, pos={ctrlx+buttonx/2+8,filey+3},size={112,16},title="CFD from",value= root:lm:CFDsource,font="arial",fsize=9
 		filey+=30	
+
 
 		
 		SetDrawEnv linefgc= (39168,0,31232)

@@ -116,6 +116,8 @@ int main( int argc, const char **argv) {
   // ************************ read data  *********************************
 
   revsn = hwinfo(mapped,I2C_SELMAIN);    // some settings may depend on HW variants
+   // if DB info = 0xF (no DB), insert a default for the return?
+
   mapped[AMZ_PCB_VERSION] = revsn >> 16;      // store PROM revsion info in MZ register, so it can be read without slow I2C
   // mapped[AMZ_PLLSTART] = 4;           // low 2 bits set CLK SEL for PLL input (1=WRclkDB, 0 = FPGA/other)
                                           // any write will start programming the LMK PLL for ADC and FPGA processing clock  
@@ -128,7 +130,7 @@ int main( int argc, const char **argv) {
 
   N_FPGA_BYTES =10;
   // Rev B DB options
-  if((revsn & PNXL_MB_REV_MASK) == PNXL_MB_REVB)
+  if( (revsn & PNXL_MB_REV_MASK) == PNXL_MB_REVB || (revsn & PNXL_MB_REV_MASK) == PNXL_MB_REVC )      // for now, Rev B and Rev C use the same FW
   {
       if(tenG==0) {
       // 1G files
@@ -202,8 +204,15 @@ int main( int argc, const char **argv) {
          }
          if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250)
          {
-            fil = fopen("PNXLK7B_DB04_14_250_10G.bin","rb");
-            printf(" HW Rev = 0x%04X, SN = %d,  loading PNXLK7B_DB04_14_250_10G.bin\n", revsn>>16, revsn&0xFFFF);
+            if(Rbin==1)
+            {
+               fil = fopen("PNXLK7B_DB04_14_250R_10G.bin","rb");
+               printf(" HW Rev = 0x%04X, SN = %d,  loading PNXLK7B_DB04_14_250R_10G.bin (custom variant)\n", revsn>>16, revsn&0xFFFF);
+            } else
+            {
+               fil = fopen("PNXLK7B_DB04_14_250_10G.bin","rb");
+               printf(" HW Rev = 0x%04X, SN = %d,  loading PNXLK7B_DB04_14_250_10G.bin\n", revsn>>16, revsn&0xFFFF);
+            }
             N_FPGA_BYTES = N_FPGA_BYTES_B;
          }
 
@@ -269,7 +278,7 @@ int main( int argc, const char **argv) {
   }
   if(N_FPGA_BYTES==10) {
       printf("ERROR: invalid HW configuration 0x%x \n", revsn);
-      printf(" Rev test 0x%x =?= 0x%x\n",revsn & PNXL_MB_REV_MASK, PNXL_MB_REVB); 
+      printf(" Rev test 0x%x =?= 0x%x or 0x%x\n",revsn & PNXL_MB_REV_MASK, PNXL_MB_REVB, PNXL_MB_REVC); 
       printf(" DB test 0x%x =?= 0x%x\n",revsn & PNXL_DB_VARIANT_MASK, PNXL_DB02_12_250); 
       flock( fd, LOCK_UN );
       munmap(map_addr, size);
@@ -384,18 +393,20 @@ int main( int argc, const char **argv) {
 
   // CLK CTRL:
   // legal values: 
-  // 00   PLL #1 souce is Kintex #1, PLL #0 source is PLL #1, Kintex uses local clock
-  // 03   both PLL's source is from WRclkDB
-  // 0F   PLL #1 souce is Kintex #1, PLL #0 source is PLL #1, Kintex uses TTCL clk from TDF
-  // 3F   PLL #1 souce is Kintex #1, PLL #0 source is PLL #1, Kintex uses TTCL clk from jitter cleaner
+  // 00   PLL #1 source is Kintex #1, PLL #0 source is PLL #1, Kintex uses local clock
+  // 03   both PLL's source is from WRclkDB or TTCL interface board
+  // 0C   PLL #1 source is Kintex #1, PLL #0 source is PLL #1, Kintex uses TTCL clk from TDF
+  // 3C   PLL #1 source is Kintex #1, PLL #0 source is PLL #1, Kintex uses TTCL clk from jitter cleaner
+
+  // note 03 and 3F is not 
 
   if( (fippiconfig.CLK_CTRL == 0x00) | 
       (fippiconfig.CLK_CTRL == 0x03) |
-      (fippiconfig.CLK_CTRL == 0x0F) |
+      (fippiconfig.CLK_CTRL == 0x0C) |
       (fippiconfig.CLK_CTRL == 0x3F) ) {
       // ok
   }  else {
-      printf("Invalid CLK_CTRL = 0x%x, should be 0, 3, 0xF or 0x3F\n",fippiconfig.CLK_CTRL);
+      printf("Invalid CLK_CTRL = 0x%x, should be 0, 3, 0xC or 0x3C\n",fippiconfig.CLK_CTRL);
       return -800;
   }
 
@@ -409,8 +420,8 @@ int main( int argc, const char **argv) {
       mapped[AMZ_EXAFRD] = AK7_SYS_RS;
    
       mval = 0;                          // write 0 to reset
-      if( fippiconfig.CLK_CTRL == 0x0F)  mval = mval + (1<<SCSR_TTCL_CLK_OUT);              // choose TTCL clocking options (applied at boot alread, must not change here)
-      if( fippiconfig.CLK_CTRL == 0x3F)  mval = mval + (1<<SCSR_TTCL_CLK_SL);               // choose TTCL clocking options (applied at boot alread, must not change here)
+      if( fippiconfig.CLK_CTRL == 0x0C)  mval = mval + (1<<SCSR_TTCL_CLK_OUT);              // choose TTCL clocking options (applied at boot only)
+      if( fippiconfig.CLK_CTRL == 0x3C)  mval = mval + (1<<SCSR_TTCL_CLK_SL);               // choose TTCL clocking options (applied at boot only)
       mapped[AMZ_EXAFWR] = AK7_SCSRIN;    // write to  k7's addr to select register for write
       mapped[AMZ_EXDWR]  = mval;         // write lower 16 bit
 
@@ -419,19 +430,19 @@ int main( int argc, const char **argv) {
   
 
 
-  //TODO: check Hw rev for legal values 
+  //TODO: check HW rev for legal values 
   
   mapped[AMZ_DEVICESEL] = CS_MZ;	  // select MicroZed Controller
 
-  mval = fippiconfig.CLK_CTRL;              // low 2 bits set CLK SEL for PLL input (1=WRclkDB, 0 = FPGA/other)
+  mval = fippiconfig.CLK_CTRL;              // low 2 bits set CLK SEL for PLL input (1=WRclkDB, 0 = FPGA/other) for each FPGA
   mapped[AMZ_PLLSTART] = mval;              // any write will start programming the LMK PLL for ADC and FPGA processing clock                                               
-  if( (mval & 0x3) >0)
-      printf(" initializing ADC PLL with clock from  WRclkDB or TTCL \n");
+  if(mval == 0x3)
+      printf(" initializing ADC PLL with clock from  WRclkDB or TTCL board\n");
   else
       printf(" initializing ADC PLL with clock from FPGA/other\n");
 
-  if (mval == 0x0F) printf(" other clock is from TDF \n");
-  if (mval == 0x3F) printf(" other clock is from jitter cleaner \n");
+  if (mval == 0x0C) printf(" other clock is from TDF \n");
+  if (mval == 0x3C) printf(" other clock is from jitter cleaner \n");
 
   printf(" Waiting for clock initialization (0x%x)...",fippiconfig.CLK_CTRL);
   usleep(100000);  

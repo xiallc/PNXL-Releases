@@ -15,7 +15,7 @@ Macro Pixie_InitGlobals()
 	// Create a new folder pixie4
 	NewDataFolder/o root:pixie4
 	
-	Variable/G root:pixie4:ViewerVersion = 0x621		// Pixie4 Viewer version set above in version check
+	Variable/G root:pixie4:ViewerVersion = 0x638		// Pixie4 Viewer version set above in version check
 	
 	///////////////////////////////////////////////////////////// 
 	// New Pixie-Net Variables
@@ -35,7 +35,7 @@ Macro Pixie_InitGlobals()
 	Variable/G root:pixie4:ChannelMapQuad2=0
 	Variable/G root:pixie4:ChannelMapQuad3=0
 	Variable/G root:pixie4:LMeventChannel
-	String/G root:pixie4:lmfilename = "LMdata.txt"
+	String/G root:pixie4:lmfilename = "LMdata.bin"
 	String/G root:pixie4:page
 	String/G root:pixie4:parametername
 	String/G root:pixie4:parametervalues
@@ -187,6 +187,14 @@ Macro Pixie_InitGlobals()
 	Make/o/i/u/n=(root:pixie4:ADCTraceLen) root:pixie4:ADCch5
 	Make/o/i/u/n=(root:pixie4:ADCTraceLen) root:pixie4:ADCch6
 	Make/o/i/u/n=(root:pixie4:ADCTraceLen) root:pixie4:ADCch7
+	Make/o/i/u/n=(root:pixie4:ADCTraceLen) root:pixie4:ADCch8
+	Make/o/i/u/n=(root:pixie4:ADCTraceLen) root:pixie4:ADCch9
+	Make/o/i/u/n=(root:pixie4:ADCTraceLen) root:pixie4:ADCch10
+	Make/o/i/u/n=(root:pixie4:ADCTraceLen) root:pixie4:ADCch11
+	Make/o/i/u/n=(root:pixie4:ADCTraceLen) root:pixie4:ADCch12
+	Make/o/i/u/n=(root:pixie4:ADCTraceLen) root:pixie4:ADCch13
+	Make/o/i/u/n=(root:pixie4:ADCTraceLen) root:pixie4:ADCch14
+	Make/o/i/u/n=(root:pixie4:ADCTraceLen) root:pixie4:ADCch15
 	Make/o/n=1 root:pixie4:sf
 	Make/o/n=1 root:pixie4:ff
 	Make/o/n=1 root:pixie4:seltrace
@@ -200,6 +208,14 @@ Macro Pixie_InitGlobals()
 	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAch5
 	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAch6
 	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAch7
+	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAch8
+	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAch9
+	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAch10
+	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAch11
+	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAch12
+	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAch13
+	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAch14
+	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAch15
 	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAref		
 	Make/o/i/u/n=(root:pixie4:MCALen) root:pixie4:MCAsum	
 	Make/o/i/u/n=1 root:pixie4:Spectrum0
@@ -221,6 +237,14 @@ Macro Pixie_InitGlobals()
 	Make/o/i/n=1 root:pixie4:trace5
 	Make/o/i/n=1 root:pixie4:trace6
 	Make/o/i/n=1 root:pixie4:trace7
+	Make/o/i/n=1 root:pixie4:trace8
+	Make/o/i/n=1 root:pixie4:trace9
+	Make/o/i/n=1 root:pixie4:trace10
+	Make/o/i/n=1 root:pixie4:trace11
+	Make/o/i/n=1 root:pixie4:trace12
+	Make/o/i/n=1 root:pixie4:trace13
+	Make/o/i/n=1 root:pixie4:trace14
+	Make/o/i/n=1 root:pixie4:trace15
 	Make/o/i/n=1 root:pixie4:traceRef					
 	Variable/G root:pixie4:wftimescale	// sampling interval of LM traces (seconds)
 	
@@ -414,8 +438,8 @@ Function Pixie_Tdiff_globals()
 	variable/G  root:LM:LB = 12 					// length of baseline sum
 	variable/G  root:LM:RTlow = 0.5				// CF threshold
 	variable/G  root:LM:TSscale = 1
-	variable/G  root:LM:defaultTriggerPos
-
+	variable/G  root:LM:defaultTriggerPos =20	// starting point to look for triggers. must be greater than LB
+	String/G    root:LM:CFDsource = " "
 
 End
 
@@ -459,7 +483,63 @@ End
 // LM data file analysis definitions
 //
 //########################################################################
+Function Pixie_SetTimeScales()
 
+	Nvar ModuleType = root:pixie4:ModuleType
+	Nvar wftimescale = root:pixie4:wftimescale			// sample interval in seconds  as read from the file (or entered manually)
+	Nvar WFscale =root:pixie4:WFscale 					// sample interval in ns (user entry in panel)	
+	Nvar TSscale = root:LM:TSscale
+
+	if(ModuleType>0)		// extract sampling rate from DB type TODO: add Pixie-Net, PH, P4e
+		if((ModuleType&0x0FF0)==0x0110)			// Pixie-Net XL
+			WFscale = 8
+			TSscale = 1
+		elseif((ModuleType&0x0FF0)==0x0120)
+			WFscale = 4
+			TSscale = 1
+		elseif((ModuleType&0x0FF0)==0x0140)
+			WFscale = 4
+			TSscale = 1
+		elseif((ModuleType&0x0FF0)==0x0150)
+			WFscale = 4	
+			TSscale = 1				
+		elseif((ModuleType&0x0FF0)==0x0160)
+			WFscale = 4
+			TSscale = 1
+		elseif((ModuleType&0x0FF0)==0x0170)
+			WFscale = 2
+			TSscale = 1
+		elseif((ModuleType&0x0FF0)==0x0180)
+			WFscale = 4
+			TSscale = 1	
+		elseif((ModuleType&0x0FF0)==0x0190)
+			WFscale = 4
+			TSscale = 1
+		elseif((ModuleType&0x0FF0)==0x0990)		// Pixie-Net
+			WFscale = 4
+			TSscale = 1
+		elseif((ModuleType&0x0FF0)==0x0190)		// Pixie Hybrid 16/250
+			WFscale = 4
+			TSscale = 2
+		elseif((ModuleType&0x0FF0)==0x0190)		// Pixie Hybrid 14/500
+			WFscale = 2
+			TSscale = 2
+		elseif((ModuleType&0x0FF0)==0x0190)		// Pixie Hybrid 14/100
+			WFscale = 10
+			TSscale = 2	// double check
+		elseif((ModuleType&0x0FF0)==0x0550)		// Pixie-4e 16/125
+			WFscale = 8
+			TSscale = 2
+		elseif((ModuleType&0x0FF0)==0x05E0)		// Pixie-4e 14/500
+			WFscale = 4
+			TSscale = 2					
+		endif
+	else
+		//print "Can not get waveform sampling interval from file, using the user provided number"						
+	endif
+	wftimescale = WFscale*1e-9	// use [updated] panel value
+
+End
 
 Function Pixie_Make_LMheadernames110()
 
@@ -511,7 +591,6 @@ Function Pixie_Make_LMheadernames110()
 	Nvar iCFDsum12  = root:pixie4:iCFDsum12 
 	Nvar iCFDsum2   = root:pixie4:iCFDsum2
 	iMType = 1
-	iMType = 1 
 	iHitL  = -1
 	iHitM  = -1 
 	iTimeL = 5 
@@ -534,36 +613,17 @@ Function Pixie_Make_LMheadernames110()
 	wave LMfileheader =  root:pixie4:LMfileheader
 	Nvar evsize    =  root:pixie4:evsize
 	Nvar runtype = root:pixie4:runtype
-	Nvar wftimescale = root:pixie4:wftimescale			// sample interval in seconds  as read from the file (or entered manually)
-	Nvar WFscale =root:pixie4:WFscale 					// sample interval in ns (user entry in panel)	
-	Nvar ModuleType = root:pixie4:ModuleType
-
 	evsize = LMfileheader[0] + (LMfileheader[10] & 0x7FFF) 		// assuming all are the same as ch.0 
 	runtype = LMfileheader[2]
+	
+	Nvar ModuleType = root:pixie4:ModuleType
 	ModuleType = LMfileheader[iMType]
-
-	if(ModuleType>0)		// extract sampling rate from DB type TODO: add Pixie-Net, PH, P4e
-		if((ModuleType&0x0FF0)==0x0110)
-			WFscale = 8
-		elseif((ModuleType&0x0FF0)==0x0120)
-			WFscale = 4
-		elseif((ModuleType&0x0FF0)==0x0140)
-			WFscale = 4
-		elseif((ModuleType&0x0FF0)==0x0150)
-			WFscale = 4					
-		elseif((ModuleType&0x0FF0)==0x0160)
-			WFscale = 4
-		elseif((ModuleType&0x0FF0)==0x0170)
-			WFscale = 2
-		elseif((ModuleType&0x0FF0)==0x0180)
-			WFscale = 4	
-		elseif((ModuleType&0x0FF0)==0x0190)
-			WFscale = 4
-		endif
-	else
-		//print "Can not get waveform sampling interval from file, using the user provided number"						
-	endif
-	wftimescale = WFscale*1e-9	// use [updated] panel value
+	Pixie_SetTimeScales()
+	
+	Svar CFDsource  =  root:LM:CFDsource
+	CFDsource = "FPGA (4w raw)"
+	//CFDsource = "DSP/ARM (1w fraction)"
+	//CFDsource = "none"
 
 End
 
@@ -639,6 +699,18 @@ Function Pixie_Make_LMheadernames116()	// P16 0x100, not P4 0x100
 	evsize = (LMfileheader[1] & 0x7FFE)		// assuming all are the same as ch.0 
 	runtype = 0x116
 	
+	// no moduletype, waveform time scale is unknown
+	Nvar wftimescale = root:pixie4:wftimescale			// sample interval in seconds  as read from the file (or entered manually)
+	Nvar WFscale =root:pixie4:WFscale 					// sample interval in ns (user entry in panel)	
+	Nvar TSscale = root:LM:TSscale
+	TSscale = 8	
+	wftimescale = WFscale*1e-9	// use [updated] panel value
+	
+	Svar CFDsource  =  root:LM:CFDsource
+	//CFDsource = "FPGA (4w raw)"
+	CFDsource = "DSP/ARM (1w fraction)"
+	//CFDsource = "none"
+
 End
 
 
@@ -659,6 +731,7 @@ Function Pixie_Make_LMheadernames400()
 	LMheadernames[9] = "EventLength1 "
 	LMheadernames[10] = "EventLength2 "
 	LMheadernames[11] = "EventLength3 "
+	LMheadernames[12] = "Serial Number "
 	LMheadernames[32] = "EvtPattern "
 	LMheadernames[33] = "EvtInfo  "
 	LMheadernames[34] = "NumTraceBlks "
@@ -735,10 +808,20 @@ Function Pixie_Make_LMheadernames400()
 	wave LMfileheader =  root:pixie4:LMfileheader
 	Nvar evsize    =  root:pixie4:evsize
 	Nvar runtype = root:pixie4:runtype
+
 	variable blksize
 	BlkSize = LMfileheader[0]
 	evsize = LMfileheader[8]	* BlkSize		// assuming all are the same as ch.0 
 	runtype = LMfileheader[2]
+	
+	Nvar ModuleType = root:pixie4:ModuleType
+	ModuleType = LMfileheader[iMType]
+	Pixie_SetTimeScales()
+	
+	Svar CFDsource  =  root:LM:CFDsource
+	//CFDsource = "FPGA (4w raw)"
+	CFDsource = "DSP/ARM (1w fraction)"
+	//CFDsource = "none"
 
 End
 
@@ -759,7 +842,7 @@ Function Pixie_Make_LMheadernames402()
 	LMheadernames[9] = "EventLength1 "
 	LMheadernames[10] = "EventLength2 "
 	LMheadernames[11] = "EventLength3 "
-	
+	LMheadernames[12] = "Serial Number "
 	LMheadernames[32] = "EvtPattern "
 	LMheadernames[33] = "EvtInfo  "
 	LMheadernames[34] = "NumTraceBlks "
@@ -840,6 +923,15 @@ Function Pixie_Make_LMheadernames402()
 	BlkSize = LMfileheader[0]
 	evsize = LMfileheader[6]	* BlkSize		// assuming all are the same as ch.0 
 	runtype = LMfileheader[2]
+	
+	Nvar ModuleType = root:pixie4:ModuleType
+	ModuleType = LMfileheader[iMType]
+	Pixie_SetTimeScales()
+	
+	Svar CFDsource  =  root:LM:CFDsource
+	//CFDsource = "FPGA (4w raw)"
+	//CFDsource = "DSP/ARM (1w fraction)"
+	CFDsource = "none"
 	
 End
 
@@ -937,6 +1029,15 @@ Function Pixie_Make_LMheadernames404()
 	BlkSize = 32
 	evsize = LMfileheader[9]*BlkSize  + LMfileheader[0]// assuming all are the same as ch.0 
 	runtype = LMfileheader[2]
+	
+	Nvar ModuleType = root:pixie4:ModuleType
+	ModuleType = LMfileheader[iMType]
+	Pixie_SetTimeScales()
+	
+	Svar CFDsource  =  root:LM:CFDsource
+	//CFDsource = "FPGA (4w raw)"
+	//CFDsource = "DSP/ARM (1w fraction)"
+	CFDsource = "none"
 
 End
 
@@ -1020,6 +1121,15 @@ Function Pixie_Make_LMheadernames410()
 	BlkSize = 32
 	evsize = LMfileheader[5]*BlkSize  + LMfileheader[0]// assuming all are the same as ch.0 
 	runtype = LMfileheader[2]
+	
+	Nvar ModuleType = root:pixie4:ModuleType
+	ModuleType = LMfileheader[iMType]
+	Pixie_SetTimeScales()
+	
+	Svar CFDsource  =  root:LM:CFDsource
+	CFDsource = "FPGA (4w raw)"
+	//CFDsource = "DSP/ARM (1w fraction)"
+	//CFDsource = "none"
 	
 End
 
@@ -1105,6 +1215,15 @@ Function Pixie_Make_LMheadernames411()
 	BlkSize = 32
 	evsize = (LMfileheader[3] & 0x07FF) +2 	// assuming all are the same as ch.0 
 	runtype = 0x411
+	
+	Nvar ModuleType = root:pixie4:ModuleType
+	ModuleType = LMfileheader[iMType]
+	Pixie_SetTimeScales()
+	
+	Svar CFDsource  =  root:LM:CFDsource
+	CFDsource = "FPGA (4w raw)"
+	//CFDsource = "DSP/ARM (1w fraction)"
+	//CFDsource = "none"
 	
 End
 

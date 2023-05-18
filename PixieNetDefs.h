@@ -34,7 +34,7 @@
  *----------------------------------------------------------------------*/
 
 // system constants
-#define PS_CODE_VERSION                   0x0332
+#define PS_CODE_VERSION                   0x0339
 #define PN_BOARD_VERSION_12_250_A         0xA990    
 #define PN_BOARD_VERSION_12_250_B         0xA991  
 #define PN_BOARD_VERSION_12_250_B_PTP     0xA981  
@@ -51,6 +51,7 @@
 #define PNXL_DB08_14_250                  0x00800000   // value for DB08 with 14/250 MHZ ADC
 #define PNXL_MB_REVA                      0x00000000   // value for Rev A Main board
 #define PNXL_MB_REVB                      0x00010000   // value for Rev B Main board
+#define PNXL_MB_REVC                      0x00020000   // value for Rev C Main board
 #define PNXL_MB_10G                       0xA0000000   // value for 10G clocking
 #define PNXL_MB_WR                        0xB0000000   // value for 1G clocking + WR
 #define PNXL_MB_TTCL                      0xC0000000   // value for 10G clocking + TTCL
@@ -319,7 +320,10 @@
 #define AK7_RUNTYPE           0x26        // inform FPGA of Run type
 #define AK7_USR_PCK_DATA      0x27        // arbitray word to include into 0x411 header
 #define AK7_TTCL_STNC_TIME    0x28        // specify the time for synchronization
-#define AK7_TTCL_APPR_WINDOW  0x31        // length of TTCL acceptance window 
+#define AK7_TTCL_APPR_WINDOW  0x2A        // length of TTCL acceptance window 
+#define AK7_GROUPMODE_AB      0x2C        // number specifying the trigger distribution mode for channels
+#define AK7_GROUPMODE_K7      0x30        // number specifying the trigger distribution mode for Kintex
+#define AK7_GATE_LENGTH       0x31        // gating time window (when generated internally from other signals)
 
 #define AK7_P16REG00          0x40
 #define AK7_P16REG01          0x44
@@ -333,6 +337,8 @@
 #define AK7_P16REG_C0         0x62
 #define AK7_P16REG_CG         0x64
 #define AK7_P16REG_C1         0x66
+#define AK7_P16REG_ELO        0x68
+#define AK7_P16REG_EHI        0x69
 
 #define AK7_SYS_RS            0x80
 #define AK7_CSROUT            0x80
@@ -427,6 +433,10 @@
 #define CCSRC_MODVETOSEL      4           // Module veto selection - 1: module validation trigger; 0: front panel module veto
 #define CCSRC_EXTTSENA        5           // External timestamps in event header - 1: enable; 0: disable
 #define CCSRC_RBADDIS         6           // if 1, disable rangebad logic and accept even pulses going out of range      
+#define CCSRC_PAUSE_PILEUP    7           // if 1, pause pileup inspection briefly after trigger
+#define CCSRC_LOCAl_ENERGY    9           // if 1, use local trigger for energy filter capture
+#define CCSRC_SIM_ADC         10          // if 1, replace ADC data with simulated data stream
+
 
 // other CSR bits
 #define WRC_RUNTIME_K7        0           // if set, Enable WR run time control in Kintex
@@ -455,11 +465,15 @@
 #define FiPPI_QDCENA          14
 #define FiPPI_CFDMODE         15
 #define FiPPI_GLOBTRIG        16
+#define FiPPI_PAUSE_PILEUP    18
 #define FiPPI_CHANTRIG        17
 #define FiPPI_RBADDIS         19          // if 1, disable rangebad logic and accept even pulses going out of range
 #define FiPPI_GOOD            29          // good-channel bit - 1: channel data will be read out; 0: channel data will not be read out
 #define FiPPI_PILEUPCTRL      30
 #define FiPPI_INVERSEPILEUP   31
+#define FiPPI_LOCAl_ENERGY    6           // bit 5 in the "high" portion of Reg 2
+#define FiPPI_SIM_ADC         7
+
 
 // other FW control register bits
 #define SCSR_WRRUNTIMECTRL    1           // Enable WR run time Control

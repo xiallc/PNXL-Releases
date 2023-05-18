@@ -770,7 +770,20 @@ int init_PixieNetFippiConfig_from_file( const char * const filename,
 
   ret = parse_single_int_val( label_to_values, "TRIG_CONFIG3", config->TRIG_CONFIG3, ignore_missing ) ;
   if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
+
+  ret = parse_single_int_val( label_to_values, "GROUPMODE_K7", config->GROUPMODE_K7, ignore_missing ) ;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
+
+  ret = parse_single_int_val( label_to_values, "GATE_LENGTH", config->GATE_LENGTH, ignore_missing ) ;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -11;
+
+  ret = parse_single_int_val( label_to_values, "VETO_MODE", config->VETO_MODE, ignore_missing ) ;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
    
+  ret = parse_single_int_val( label_to_values, "DYNODE_LENGTH", config->DYNODE_LENGTH, ignore_missing ) ;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
+  
+ 
   //unsigned int MOD_U4, MOD_U3, MOD_U2, MOD_U1, MOD_U0;
 
   // *************** channel parameters ************************************
@@ -928,6 +941,18 @@ int init_PixieNetFippiConfig_from_file( const char * const filename,
   if(ret==0) 
     for( int i = 0; i < NCHANNELS; ++i )
       config->CHANNEL_CSRC[i] = SetOrClrBit(6, config->CHANNEL_CSRC[i], bits[i]);  
+
+  ret = parse_multiple_bool_val( label_to_values, "CCSRC_PAUSEPILEUP_07", bits, ignore_missing ) ;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )    return -37;
+  if(ret==0) 
+    for( int i = 0; i < NCHANNELS; ++i )
+      config->CHANNEL_CSRC[i] = SetOrClrBit(7, config->CHANNEL_CSRC[i], bits[i]);   
+
+  ret = parse_multiple_bool_val( label_to_values, "CCSRC_LOCAL_ENERGY_09", bits, ignore_missing ) ;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )    return -37;
+  if(ret==0) 
+    for( int i = 0; i < NCHANNELS; ++i )
+      config->CHANNEL_CSRC[i] = SetOrClrBit(9, config->CHANNEL_CSRC[i], bits[i]);  
   
 
       // --------------- other channel parameters -------------------------------------
@@ -1079,6 +1104,15 @@ int init_PixieNetFippiConfig_from_file( const char * const filename,
   if( (ignore_missing==0 && ret==1) || (ret<0) )  return -39;
 
   ret = parse_multiple_int_val( label_to_values, "EMIN", config->EMIN, ignore_missing );
+  if( (ignore_missing==0 && ret==1) || (ret<0) )  return -39;
+
+  ret = parse_multiple_int_val( label_to_values, "ELO", config->ELO, ignore_missing );
+  if( (ignore_missing==0 && ret==1) || (ret<0) )  return -39;
+
+  ret = parse_multiple_int_val( label_to_values, "EHI", config->EHI, ignore_missing );
+  if( (ignore_missing==0 && ret==1) || (ret<0) )  return -39;
+
+  ret = parse_multiple_int_val( label_to_values, "GROUPMODE_FIP", config->GROUPMODE_FIP, ignore_missing );
   if( (ignore_missing==0 && ret==1) || (ret<0) )  return -39;
 
  
