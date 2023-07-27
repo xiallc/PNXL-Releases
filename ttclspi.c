@@ -111,7 +111,7 @@ int main( int argc, char *argv[] ) {
    addr = strtol(argv[1], NULL, 16);      // address 
    data = strtol(argv[2], NULL, 16);      // write data
    rw   = strtol(argv[3], NULL, 10);      // read or write
-   k7   = strtol(argv[4], NULL, 10);      // read or write
+   k7   = strtol(argv[4], NULL, 10);      // FPGA/slot ID
 
    // ************************ prepare to write *********************************
         

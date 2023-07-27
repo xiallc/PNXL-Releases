@@ -34,7 +34,7 @@
  *----------------------------------------------------------------------*/
 
 // system constants
-#define PS_CODE_VERSION                   0x0339
+#define PS_CODE_VERSION                   0x033A
 #define PN_BOARD_VERSION_12_250_A         0xA990    
 #define PN_BOARD_VERSION_12_250_B         0xA991  
 #define PN_BOARD_VERSION_12_250_B_PTP     0xA981  
@@ -95,6 +95,7 @@
 #define P16_HDR_LEN                       10         // fixed header length for P16 run type 0x100  (32bit words)
 #define ETH_HDR_LEN_410                   90         // fixed Ethernet package header length for run type 0x404 in bytes
 #define ETH_HDR_LEN_404                   122        // fixed Ethernet package header length for run type 0x404 in bytes
+#define ETH_HDR_LEN_404x8                 674        // fixed Ethernet package header length for run type 0x404 with 8 events per package in bytes
 #define ETH_HDR_LEN_110                   74         // fixed Ethernet package header length for run type 0x104 in bytes
 #define ETH_HDR_LEN_104                   74         // fixed Ethernet package header length for run type 0x104 in bytes
 #define ETH_HDR_LEN_100                   68         // fixed Ethernet package header length for run type 0x100 in bytes

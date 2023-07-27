@@ -85,7 +85,7 @@ int main(void) {
   int verbose = 1;      // TODO: control with argument to function  ?
   // 0 print errors and minimal info only
   // 1 print errors and full info
-  int maxmsg = 10;
+  int maxmsg = 0;    // number of events to report during processing
 
 
   // *************** PS/PL IO initialization *********************
@@ -501,7 +501,7 @@ int main(void) {
             // 2) MCA
             filmca = fopen("MCA.csv","w");
             fprintf(filmca,"bin");
-            for(ch=0;ch<NCHANNELS_PRESENT;ch++) fprintf(filmca,",MCAch%02d",ch);
+            for(ch=0;ch<NCHANNELS_PRESENT;ch++) fprintf(filmca,",MCAch%d",ch);
             fprintf(filmca,"\n");
             for( k=0; k <WEB_MCA_BINS; k++)                // report the 4K spectra during the run (faster web update)
             {

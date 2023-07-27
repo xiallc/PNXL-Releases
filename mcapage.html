@@ -2,116 +2,99 @@
 <html lang="en">
 
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script type="text/javascript"  src="dygraph-combined.js"></script>
-	 <script src="d3.v3.min.js"></script>
-    <title>Pixie-Net MCA</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Pixie-Net MCA </title>
+<style type="text/css">
+	body { background-color:#d0d0d0; font-family:sans-serif; }
+	h1 { margin:0; font-size:24px }
+	h2 { margin-top:15px; font-size:20px; font-weight:normal; border-bottom:1px solid #ff9040 }
+	p { font-size:14px }
+	li { font-size:14px }
+	a { color:#6060d0; text-decoration:none }
+	a:hover { text-decoration:underline }
 
-    <style type="text/css">
-        body { background-color:#d0d0d0; font-family:sans-serif; }
-        h1 { margin:0; font-size:24px }
-        h2 { margin-top:15px; font-size:20px; font-weight:normal; border-bottom:1px solid #ff9040 }
-        p { font-size:14px }
-        li { font-size:14px }
-        a { color:#6060d0; text-decoration:none }
-        a:hover { text-decoration:underline }
+	.header { padding: 20px; text-align: center; background: #1e73be; color: white; }
+	.header h1 { font-size: 40px; 	}
 
-        .header { padding: 20px; text-align: center; background: #1e73be; color: white; }
-        .header h1 { font-size: 40px; 	}
+	/* Ensure proper sizing */
+	* { box-sizing: border-box; }
 
-        /* Ensure proper sizing */
-        * { box-sizing: border-box; }
+	/* Column container */
+	.row { display: flex; flex-wrap: wrap; }
 
-        /* Column container */
-        .row { display: flex; flex-wrap: wrap; }
+	/* Sidebar/left column */
+	.side { height: 100%; width: 180px; position: fixed; background-color: white; padding: 20px; }
+	.side a { float: left; display: block; color: #002b80; text-align: left; padding: 10px 10px; text-decoration: none; }
+	.side a:hover { background-color: #ddd; color: #1e73be; }
 
-        /* Sidebar/left column */
-        .side { height: 100%; width: 180px; position: fixed; background-color: white; padding: 20px; }
-        .side a { float: left; display: block; color: #002b80; text-align: left; padding: 10px 10px; text-decoration: none; }
-        .side a:hover { background-color: #ddd; color: #1e73be; }
+    /* bottom help section */
+	.fixed_bot { position: fixed; bottom: 0; left: 0; width: 180px; padding: 20px }
+	.fixed_bot  p {font-size: 11px; }
+	.fixed_bot  a {font-size: 12px; }
 
-        /* bottom help section */
-        .fixed_bot { position: fixed; bottom: 0; left: 0; width: 180px; padding: 20px }
-        .fixed_bot  p {font-size: 11px; }
-        .fixed_bot  a {font-size: 12px; }
+	/* Main column */
+	.main { margin-left: 180px; padding: 20px; }
 
-        /* Main column */
-        .main { margin-left: 180px; padding: 20px; }
+	.w3-card-2{
+		background-color:white;
+		border-radius:3px;
+		padding: 10px;
+		margin-bottom: 20px;
+		box-shadow:0 4px 10px 0 rgba(0,0,0,0.16),0 2px 10px 0 rgba(0,0,0,0.12)
+	}
 
-        .w3-card-2{
-            background-color:white;
-            border-radius:3px;
-            padding: 10px;
-            margin-bottom: 20px;
-            box-shadow:0 4px 10px 0 rgba(0,0,0,0.16),0 2px 10px 0 rgba(0,0,0,0.12)
-        }
-
-        .tooltip { position: relative; display: inline-block; border-bottom: 1px dotted black; }
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: 250px;
-            background-color: #1e73be;
-            color: white;
-            text-align: left;
-            border-radius: 6px;
-            padding: 5px 5px;
-            position: absolute;
-            z-index: 1;
-        }
-        .tooltip:hover .tooltiptext { visibility: visible; width: 250px; top: 100%; left: 80%; margin-left: -60px;	}
-
-		  table { border-collapse: collapse; }
-        th { border-bottom: 2px solid #ddd; padding: 8px; font-weight: bold; font-size: 12px;}
-        td { padding: 8px; border-top: 1px solid #ddd; font-size: 12px; }
+	table { border-collapse: collapse; }
+	th { border-bottom: 2px solid #ddd; padding: 8px; font-weight: bold; font-size: 12px;}
+	td { padding: 8px; border-top: 1px solid #ddd; font-size: 12px; }
 
 
-    </style>
+</style>
+
+<script type="text/javascript"  src="dygraph-combined.js"></script>
+<script src="d3.v3.min.js"></script>
+
 </head>
 
 
 <body>
-
 <div class="header">
-    <h1>Pixie-Net MCA (file)</h1>
+	<h1>Pixie-Net MCA Spectrum </h1>
+		[ from file in /var/www ]
 </div>
-
 <div class="row">
-    <div class="side">
-        <img src="xialogo.jpg" width="140" height=auto alt="XIA Logo">
-        <p> </p>
+	<div class="side">
+		<img src="xialogo.jpg" width="140" height=auto alt="XIA Logo">
+		<p> </p>
 		<a href="/index.html"> Home </a>
 		<a href="cgitraces.cgi"> Current ADC traces </a>
 		<a href="cgistats.cgi"> Current run statistics </a>
 		<a href="mcapage.html">Most recent <br> MCA spectra</a>
 		<a href="/webops/webopsindex.html"> Web interface </a>
 
-        <div class="fixed_bot">
-            <h2>Help</h2>
-            <i><p>This page displays the MCA spectra and count rates saved to files RATES.csv and MCA.csv by startdaq, acquire, etc. </p>
-            <p>Double click to auto zoom </p>
-            <p>Click and drag to zoom </p>
-            <p>Alt click and drag to pan </p>
+		<div class="fixed_bot">
+			<h2>Help</h2>
+			<i><p>This page displays the MCA spectra saved to file MCA.csv by startdaq, mcadaq, etc. </p>
+            <p>Double click to auto zoom. <br> Click and drag to zoom. <br> Alt click and drag to pan. </p> 
             <p>Use browser button to refresh </p></i>
-        </div>
-    </div>
+		</div>
+	</div>
 
-    <div class="main">
-        <div class="w3-card-2">
-
-            <div id="graphdiv2"  style="width:500px; height:300px; "></div>
+	<div class="main">
+	  	<div class="w3-card-2">
+		 	<div id="graphdiv2"  style="width:500px; height:300px;"></div>
             <div id = "legend" style="width:500px; height:80px;" ></div>
 
 
         <div id="boxes">
-        <input id='ylog' type="button" value="y log scale" onclick="setLogScale('y', true)">
-        <input id='ylinear' type="button" value="y linear scale" onclick="setLogScale('y', false)">
-        <input id='showall' type="button" value="Show All" onclick="showall(true)">
-        <input id='hideall' type="button" value="Hide All" onclick="showall(false)">
-
+        		<input id='ylog' type="button" value="y log scale" onclick="setLogScale('y', true)">
+        		<input id='ylinear' type="button" value="y linear scale" onclick="setLogScale('y', false)">
+        		<input id='showall' type="button" value="Show All" onclick="showall(true)">
+        		<input id='hideall' type="button" value="Hide All" onclick="showall(false)">
+	     		<input type="checkbox" id="autoupdate" onclick="toggle()"> Update periodically
             <p><b>Show</b></p>
             <p>
-              <input type="checkbox" id="0" checked="checked"  onclick="change(this)">
+              <input type="checkbox" id="0" checked="checked" onclick="change(this)">
               <label for="0"> mca00 </label>
               <input type="checkbox" id="1" checked="checked" onclick="change(this)">
               <label for="1"> mca01 </label>
@@ -146,7 +129,7 @@
               <label for="14"> mca14 </label>
               <input type="checkbox" id="15" checked="checked" onclick="change(this)">
               <label for="15"> mca15 </label><br>
-            </p>
+              </p>
              </div>
         </div>
 
@@ -161,24 +144,42 @@
 
 <script type="text/javascript">
 
-    var g2 = new Dygraph(
-        document.getElementById("graphdiv2"),
-        "MCA.csv", // path to CSV file
-        {  // graph options
+  var g2 = new Dygraph(
+    document.getElementById("graphdiv2"),
+    "MCA.csv", // path to CSV file
+    {  // graph options
             colors:
                 ["Navy", "Maroon",    "DarkMagenta", "Black",
                     "Blue", "Red",       "BlueViolet",  "Green",
                     "Teal", "Darkorange","Fuchsia",     "Olive" ,
                     "Aqua", "Gold",      "Gray",        "Lime" ],
-            title: ' ',
-            ylabel: 'N Counts',
-            xlabel: 'Bin Number',
-            labelsDiv: document.getElementById('legend'),
-            legend: 'always',
-            // TODO: legendformatter option with updated dygraph dygraph.min.js
-            visibility: [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true]
+	  title: ' ',
+	  ylabel: 'N Counts',
+	  xlabel: 'Bin Number',
+	  labelsDiv: document.getElementById('legend'),
+	  legend: 'always',
+	  // TODO: legendformatter option with updated dygraph dygraph.min.js
+	  visibility: [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true]
         }
-    );
+  );
+      var graphs = [ g2 ];
+      var scales = { x : false, y : false };
+      function setLogScale(axis, val) {
+        if (axis === 'y') {
+          for (var idx = 0; idx < graphs.length; idx++) {
+            graphs[idx].updateOptions({ logscale: val });
+          }
+        } else {
+          for (var idx = 0; idx < graphs.length; idx++) {
+            graphs[idx].updateOptions({ axes : { x : {  logscale : val } } });
+          }
+        }
+        scales[axis] = val;
+        var text = "y: " + (scales.y ? "log" : "linear") + ", x: " + (scales.x ? "log" : "linear");
+        document.getElementById("description").innerText = text;
+      }
+
+      setLogScale('y', false);
 
     function change(el) {
         g2.setVisibility(el.id, el.checked);
@@ -203,64 +204,62 @@
         g2.setVisibility(15, el.checked);
     }
 
-    var graphs = [ g2 ];
-    var scales = { x : false, y : false };
-    function setLogScale(axis, val) {
-        if (axis === 'y') {
-            for (var idx = 0; idx < graphs.length; idx++) {
-                graphs[idx].updateOptions({ logscale: val });
-            }
-        } else {
-            for (var idx = 0; idx < graphs.length; idx++) {
-                graphs[idx].updateOptions({ axes : { x : {  logscale : val } } });
-            }
-        }
-        scales[axis] = val;
-        var text = "y: " + (scales.y ? "log" : "linear") + ", x: " + (scales.x ? "log" : "linear");
-        document.getElementById("description").innerText = text;
-    }
-    setLogScale('y', false);
+
 
     function showall(val) {
         for (var idx = 0; idx < graphs.length; idx++) {
             graphs[idx].updateOptions({ 	  visibility: [val, val, val, val, val, val, val, val, val, val, val, val, val, val, val, val] });
         }
     }
-  </script>
+ </script>
 
-	<script> 
-		var rows = [];
-		var formatdate = d3.time.format("%b %d %Y");
+ <script >
+
+		setInterval(function() {  
 		
-		d3.csv("RATES.csv", function(error, csv) {
-		  csv.forEach(function(row) { 
-		    rows.push(row);
-		  });
-		
-		  var table = d3.select("#datatable").append("table");
-		      thead = table.append("thead");
-		      tbody = table.append("tbody");
-		
-		  thead.append("th").text("CHANNEL");
-		  thead.append("th").text("TIME");
-		  thead.append("th").text("INPUT_COUNT_RATE");
-		  thead.append("th").text("OUTPUT_COUNT_RATE");
-		
-		
-		  var tr = tbody.selectAll("tr")
-		      .data(rows)
-		      .enter().append("tr");
-		
-		  var td = tr.selectAll("td")
-		        .data(function(d) { return [d.CHANNEL, d.TIME, d.INPUT_COUNT_RATE, d.OUTPUT_COUNT_RATE]; })
-		      .enter().append("td")
-		        .text(function(d) { return d; });
-		
-		  var width = 80,
-		      height = d3.select("table")[0][0].clientHeight,
-		      mx = 10,
-		      radius = 2;
-		});
+ 	    var decider = document.getElementById('autoupdate');
+    		if(decider.checked){
+	   		g2.updateOptions( { 'file': "MCA.csv" } );
+			}
+		//	alert("update?");
+		 }, 1000);
+
+
+</script>
+
+<script> 
+	var rows = [];
+	var formatdate = d3.time.format("%b %d %Y");
+	
+	d3.csv("RATES.csv", function(error, csv) {
+	  csv.forEach(function(row) { 
+	    rows.push(row);
+	  });
+	
+	  var table = d3.select("#datatable").append("table");
+	      thead = table.append("thead");
+	      tbody = table.append("tbody");
+	
+	  thead.append("th").text("CHANNEL");
+	  thead.append("th").text("TIME");
+	  thead.append("th").text("INPUT_COUNT_RATE");
+	  thead.append("th").text("OUTPUT_COUNT_RATE");
+	
+	
+	  var tr = tbody.selectAll("tr")
+	      .data(rows)
+	      .enter().append("tr");
+	
+	  var td = tr.selectAll("td")
+	        .data(function(d) { return [d.CHANNEL, d.TIME, d.INPUT_COUNT_RATE, d.OUTPUT_COUNT_RATE]; })
+	      .enter().append("td")
+	        .text(function(d) { return d; });
+	
+	  var width = 80,
+	      height = d3.select("table")[0][0].clientHeight,
+	      mx = 10,
+	      radius = 2;
+	});
 
 
 </script>

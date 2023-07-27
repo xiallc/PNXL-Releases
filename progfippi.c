@@ -117,7 +117,7 @@ int main(void) {
     return 1;
   }
 
-  //Lock the PL address space so multiple programs cant step on each other.
+  //Lock the PL address space so multiple programs cant step on eachother.
   if( flock( fd, LOCK_EX | LOCK_NB ) )
   {
     printf( "Failed to get file lock on /dev/uio0\n" );
@@ -1067,7 +1067,7 @@ int main(void) {
       mval = 0;
       mval = mval + 0x4500;              // version etc
       if( fippiconfig.RUN_TYPE == 0x404 )  
-         mval = mval + ETH_HDR_LEN_404;                  // 40 word data header (80tes), 8bytes UDP header, 20 bytes IPv4 header, 6 bytes filler, 8 bytes system info = 122
+         mval = mval + ETH_HDR_LEN_404x8;                  // 40 word data header (80bytes) [x8], 8bytes UDP header, 20 bytes IPv4 header, 6 bytes filler, 8 bytes system info = 122  [682]
       else if( fippiconfig.RUN_TYPE == 0x410 )  
          mval = mval + ETH_HDR_LEN_410;                  // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes 
       else if( fippiconfig.RUN_TYPE == 0x411 )  
@@ -1091,16 +1091,18 @@ int main(void) {
       mval = (mval&0xFFFF) + (mval>>16); // add accumulated carrys 
       mval = mval + (mval>>16);                // add any more carrys
       reglo = ~mval;      
+    //  reglo = 0xF66D;
       mapped[AMZ_EXAFWR] =  AK7_ETH_CHECK_SHORT;     // specify   K7's addr:    checksum (SHORT)
       mapped[AMZ_EXDWR]  =  reglo;
-      //printf("WR Ethernet data checksum FPGA %d (SHORT) = 0x%x\n",k7, reglo & 0xFFFF);
+   //   printf("WR Ethernet data checksum FPGA %d (SHORT) = 0x%x\n",k7, reglo & 0xFFFF);
 
       // IPv4 checksum computation: LONG (20 word header plus trace)
       // Note: all channels must have same TL!
       mval = 0;
       mval = mval + 0x4500;              // version etc
       if( fippiconfig.RUN_TYPE == 0x404 )  
-         mval = mval + TL[0]*2 + ETH_HDR_LEN_404;                  // 40 word data header (80bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 bytes filler, 8 bytes system info = 122 +  2*TL waveform bytes
+        // mval = mval + TL[0]*2 + ETH_HDR_LEN_404;                  // 40 word data header (80bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 bytes filler, 8 bytes system info = 122 +  2*TL waveform bytes
+         mval = mval + ETH_HDR_LEN_404x8; 
       else if( fippiconfig.RUN_TYPE == 0x410 )  
          mval = mval + TL[0]*2 + ETH_HDR_LEN_410;                  // 28 word data header (56bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes that are part of reorted data = 
       else if( fippiconfig.RUN_TYPE == 0x411 )  
@@ -1124,10 +1126,10 @@ int main(void) {
       mval = (mval&0xFFFF) + (mval>>16); // add accumulated carrys 
       mval = mval + (mval>>16);          // add any more carrys
       reglo = ~mval;      
-      //reglo = 0xF5E6;
+  //    reglo = 0xF66D;
       mapped[AMZ_EXAFWR] =  AK7_ETH_CHECK_LONG;     // specify   K7's addr:    checksum (LONG)
       mapped[AMZ_EXDWR]  =  reglo;
-     // printf("WR Ethernet data checksum FPGA %d (LONG)  = 0x%x\n",k7, reglo & 0xFFFF);
+   //  printf("WR Ethernet data checksum FPGA %d (LONG)  = 0x%x\n",k7, reglo & 0xFFFF);
       //printf("0x410 packet size %d, UDP+IPv4 total length %d bytes, TL (bytes) %d, ETH_HDR_LEN_410 %d \n",TL[0]*2+ETH_HDR_LEN_410+14,TL[0]*2+ETH_HDR_LEN_410, TL[0]*2 ); 
 
       // event header info (for UDP) 
@@ -1144,7 +1146,7 @@ int main(void) {
       mapped[AMZ_EXDWR]  =  mval;      
       //if(verbose) printf(" UDP_PAUSE, Ethernet minimum packet separation: %d (x 64ns cycles)\n",mval);    
 
-      // set the Ethernet control register with the trace length (for AutoUDP)
+      // set the Ethernet control register with the trace length (for AutoUDP)          
       mval =  ((fippiconfig.CHANNEL_CSRA[0] & (1<<CCSRA_TRACEENA)) >0); // check TraceEna bit   
       mapped[AMZ_EXAFWR] =  AK7_ETH_CTRL;    // specify   K7's addr:    Ethernet output control register
       mapped[AMZ_EXDWR]  =  ( (mval<<8) + (TL[0]>>5) );  // specify payload type with/without trace, TL blocks
@@ -2112,6 +2114,11 @@ int main(void) {
      if( (fippiconfig.RUN_TYPE == 0x404) && !( ((reglo & 0xFF)==0x42) ||  ((reglo & 0xF0)==0x60) ) ) 
      {
          printf(" Runtype 0x404 only supported for FW version 0x__42 or 0x__6_\n");
+         mval = 0;
+     }
+     if( (fippiconfig.RUN_TYPE == 0x404) && !( (PS_CODE_VERSION==0x033A) ||  ((reglo)==0x3A42) ) ) 
+     {
+         printf(" Runtype 0x404: mismatch of SW an FW \n");
          mval = 0;
      }
  

@@ -186,25 +186,50 @@ int main(void) {
     string val[NCH];
     int equal;
 
-
+ 
 
    data = getenv("QUERY_STRING");                           // retrieve webpage arguments   
+                                                            // formats are 1) <parname>=CHANNEL&v0=<value>&v1=<value> ...
+                                                            //             2) <parname>=MODULE&v0=<value>
+                                                            //             3) NAME=<parname>&VALUE=<valuestring>  (valuestring has 'w' instead of space
+
    std::string webdata(data);                               // turn into string
-   split_label_values( webdata, strReplace, remainder );    // extract label from webdata (break on =)
+   split_label_values( webdata, strReplace, remainder );    // extract label (parname) from webdata (break on first =)
 
+   //cout << "data string  " << data << endl;
 
-
+   equal = strReplace.compare("NAME");                     // replacement string differs for single and multi value 
 
    vector<string> fields;
    split( fields, remainder, " \t,;=&" );                   // divide remaining arguments along = and &
+
+
+   if(equal==0)     // check for format 3
+   {
+
+      strReplace =  fields[0];
+      strNew = fields[0] + "              ";                  // rebuild value string line: label  
+      strNew = strNew + "  "+ fields[2]  ;
+
+      for (unsigned int i = 0; i < strNew.size(); i++) {      // change 'w' back to spaces
+        if (strNew[i] == 'w') {
+           strNew[i] = ' ';
+         }
+      }
+
+
+    //  cout << "reconstructing  " << strReplace <<strNew << endl;
    
+
+   } else {        // format 1 or 2
+      
    equal = fields[0].compare("MODULE");                     // replacement string differs for single and multi value 
  
  if(equal==0)                                                              
    {
        strNew = strReplace + "              ";                  // rebuild value string line: label  
        strNew = strNew + "  "+ fields[2]  ;
-
+   
    } else {
       strNew = strReplace + "              ";                  // rebuild value string line: label   
       for(k=0;k<NCH;k++)                                       // rebuild value string line:  values
@@ -217,6 +242,8 @@ int main(void) {
          strNew = strNew + "  "+  fields[2*ch+2]  ;            // duplicating values for unused channels
       }
     }
+
+   }   // endif format
 
 
    ifstream filein( "settings.ini");                        // open input file

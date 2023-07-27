@@ -116,7 +116,7 @@ int main(void) {
   int verbose = 1;      // TODO: control with argument to function 
   // 0 print errors and minimal info only
   // 1 print errors and full info
-  int maxmsg = 10;
+  int maxmsg = 0;    // number of events to report during processing
   int rejectcount =0;
 
 
@@ -1161,7 +1161,7 @@ int main(void) {
                           // } //energy limit
                           }  // 0x400
 
-                          /* if(RunType==0x401) // && ch<NCHANNEL_MAX400)   {
+                           if(RunType==0x401) // && ch<NCHANNEL_MAX400)   {
                           {
                           // ASCII file, no trace (like AutoPRocessLMData=3)
                              chw = ch & 0x03;         // map channels into 0-3, assume only one set of 4 connected
@@ -1178,7 +1178,7 @@ int main(void) {
                                 psa_Q0,
                                 psa_Q1,
                                 psa_R       );
-                          }    // 0x401     */ 
+                          }    // 0x401      
 
                        } // end DATA_FLOW < 3
 
@@ -1263,7 +1263,7 @@ int main(void) {
         // 2) MCA
         filmca = fopen("MCA.csv","w");
         fprintf(filmca,"bin");
-        for(ch=0;ch<NCHANNELS_PRESENT;ch++) fprintf(filmca,",MCAch%02d",ch);
+        for(ch=0;ch<NCHANNELS_PRESENT;ch++) fprintf(filmca,",MCAch%d",ch);
         fprintf(filmca,"\n");
         for( k=0; k <WEB_MCA_BINS; k++)       // report the 4K spectra during the run (faster web update)
         {
