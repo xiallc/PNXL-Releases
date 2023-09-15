@@ -34,7 +34,7 @@
  *----------------------------------------------------------------------*/
 
 // system constants
-#define PS_CODE_VERSION                   0x033A
+#define PS_CODE_VERSION                   0x033B
 #define PN_BOARD_VERSION_12_250_A         0xA990    
 #define PN_BOARD_VERSION_12_250_B         0xA991  
 #define PN_BOARD_VERSION_12_250_B_PTP     0xA981  

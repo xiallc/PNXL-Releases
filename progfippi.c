@@ -2118,7 +2118,7 @@ int main(void) {
      }
      if( (fippiconfig.RUN_TYPE == 0x404) && !( (PS_CODE_VERSION==0x033A) ||  ((reglo)==0x3A42) ) ) 
      {
-         printf(" Runtype 0x404: mismatch of SW an FW \n");
+         printf(" Runtype 0x404: mismatch of SW and FW \n");
          mval = 0;
      }
  
