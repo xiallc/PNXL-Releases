@@ -81,19 +81,18 @@ int main(void) {
   char filename[64];
   unsigned int RunType, SyncT, ReqRunTime, PollTime, WR_RTCtrl, AllowStop;
   unsigned int SL[NCHANNELS], CCSRA[NCHANNELS], PILEUPCTRL[NCHANNELS];
-  //unsigned int SG[NCHANNELS];
   float Tau[NCHANNELS], Dgain[NCHANNELS];
   unsigned int BLavg[NCHANNELS], BLcut[NCHANNELS], Binfactor[NCHANNELS];
-  unsigned int TL[NCHANNELS], TRACEENA[NCHANNELS]; //, Emin[NCHANNELS];
+  unsigned int TL[NCHANNELS], TRACEENA[NCHANNELS]; 
   unsigned int GoodChanMASK[N_K7_FPGAS] = {0} ;
   double C0[NCHANNELS], C1[NCHANNELS], Cg[NCHANNELS];
   double baseline[NCHANNELS] = {0};
   double dt, ph, elm, q, tmpD, bscale;
   time_t starttime, currenttime;
-  unsigned int w0, w1, tmp0, tmp1, tmp2, cfdout1, cfdout2, cfdsrc, cfdfrc, cfd; //, tmp3;
-  unsigned long long WR_tm_tai, WR_tm_tai_start, WR_tm_tai_stop, WR_tm_tai_next;
+  unsigned int w0, w1, tmp0, tmp1, tmp2, cfdout1, cfdout2, cfdsrc, cfdfrc, cfd; 
+  unsigned long long WR_tm_tai_start, tmp_ll;
   unsigned int hdr[32];
-  unsigned int out0, out2, out3, pileup, exttsL, exttsH, hdrids, passpileup;
+  unsigned int out0, out2, out3, pileup, exttsL, exttsH, hdrids, passpileup, passTTCL;
   unsigned int evstats, udpok, R1, timeL, timeH, hit;
   unsigned int lsum, tsum, gsum, wsum, energy, energyF, bin, over; 
   unsigned int mca[NCHANNELS][MAX_MCA_BINS] ={{0}};    // full MCA for end of run
@@ -109,14 +108,15 @@ int main(void) {
 
   unsigned int cs[N_K7_FPGAS] = {CS_K0,CS_K1};
   unsigned int revsn, NCHANNELS_PER_K7, NCHANNELS_PRESENT;
-  unsigned int ADC_CLK_MHZ, FILTER_CLOCK_MHZ; //  SYSTEM_CLOCK_MHZ,
+  unsigned int ADC_CLK_MHZ, FILTER_CLOCK_MHZ; 
   int k7, ch_k7, ch, chw;  // ch = abs ch. no; ch_k7 = ch. no in k7
   unsigned int psa_base, psa_Q0, psa_Q1, psa_ampl, psa_R;
   
   int verbose = 1;      // TODO: control with argument to function 
   // 0 print errors and minimal info only
   // 1 print errors and full info
-  int maxmsg = 0;    // number of events to report during processing
+  int maxmsg = 10;    // number of events to report during processing
+  if(!verbose) maxmsg = 0;
   int rejectcount =0;
 
 
@@ -198,7 +198,13 @@ int main(void) {
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;
       ADC_CLK_MHZ       =  ADC_CLK_MHZ_DB02;
   }
-
+  if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)
+  {
+      NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB01;
+      NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB01;
+      ADC_CLK_MHZ       =  ADC_CLK_MHZ_DB10_500;             
+  }
+ 
   // check if FPGA booted
   tmp0 = mapped[AMZ_CSROUTL];
   if( (tmp0 & 0x4000) ==0) {
@@ -246,12 +252,12 @@ int main(void) {
 
   if( (RunType==0x100) || (RunType==0x105) || (RunType==0x110) || (RunType==0x111) || 
       (RunType==0x400) || (RunType==0x404) || (RunType==0x410) || (RunType==0x411) ) {      // check run type
-   // 0x301 no longer supported because header memory is disabled for pure MCA runs, use mcadaq instead
+      // 0x301 no longer supported because header memory is disabled for pure MCA runs, use mcadaq instead
+         // runtype ok, do nothing
   } else {
       printf( "This function only supports runtypes 0x100 (P16), 0x105, 0x110, 0x111, 0x400, 0x404, 0x410, 0x411, not 0x%x \n",RunType);
       return(-1);
   }
-
 
   for(k7=0;k7<N_K7_FPGAS;k7++)  {
      for( ch_k7=0; ch_k7 < NCHANNELS_PER_K7; ch_k7++) {
@@ -274,8 +280,8 @@ int main(void) {
          //Emin[ch]  = fippiconfig.EMIN[ch];  
          if( (CCSRA[ch] & (1<<CCSRA_GOOD)) >0 )
             GoodChanMASK[k7] = GoodChanMASK[k7] + (1<<ch_k7) ;   // build good channel mask
-     }
-  }
+     }   // end for channels
+  }      // end for FPGAs
 
 
   // --------------------------------------------------------
@@ -310,51 +316,48 @@ int main(void) {
   for( ch=0; ch < NCHANNELS; ch++) eventcount_ch[ch] = 0;
   starttime = time(NULL);                         // capture OS start time
 
-  // prepare LM files
- 
+   // prepare LM files
    
-      if( (RunType==0x100) || (RunType==0x105) ){
-        // write a 0x100 header  -- actually there is no header, just events
-        sprintf(filename, "LMdata%d.bin", fippiconfig.MODULE_ID);
-        fil = fopen(filename,"wb");
-      }  
-        
-      if(RunType==0x400){
-        // write a 0x400 header
-        // this is limited to the first 4 channels for now
-        // fwrite is slow so we will write to a buffer, and then to the file.
-        sprintf(filename, "LMdata%d.b00", fippiconfig.MODULE_ID);
-        fil = fopen(filename,"wb");
-        buffer1[0] = BLOCKSIZE_400;
-        buffer1[1] = 0;                                       // module number (get from settings file?)
-        buffer1[2] = RunType;
-        buffer1[3] = CHAN_HEAD_LENGTH_400;
-        buffer1[4] = fippiconfig.COINCIDENCE_PATTERN;
-        buffer1[5] = fippiconfig.COINCIDENCE_WINDOW;
-        buffer1[7] = revsn>>16;               // HW revision from EEPROM
-        buffer1[12] = revsn & 0xFFFF;         // serial number from EEPROM
-        for( ch = 0; ch < NCHANNEL_MAX400; ch++) {         // TODO: Runtype 0x400 records all channels as 0-3 (using lowest 2 bits), but tracelength in header is from ch.0-3)
-            buffer1[6]   +=(int)floor((TL[ch]*TRACEENA[ch] + CHAN_HEAD_LENGTH_400) / BLOCKSIZE_400);         // combined event length, in blocks
-            buffer1[8+ch] =(int)floor((TL[ch]*TRACEENA[ch] + CHAN_HEAD_LENGTH_400) / BLOCKSIZE_400);			// each channel's event length, in blocks
-          //  printf( "N blocks %d \n",(int)floor((TL[ch]*TRACEENA[ch] + CHAN_HEAD_LENGTH_400) / BLOCKSIZE_400));
-        }
-        fwrite( buffer1, 2, FILE_HEAD_LENGTH_400, fil );     // write to file
-      }  
-      
-     /*
-      if(RunType==0x401){
-         // write a 0x401 header
-         sprintf(filename,"%s_m%d.dt3","LMdata",fippiconfig.MODULE_ID); //file name: .dt3
-         fil = fopen(filename, "w"); // create .dt3 file
-         fprintf(fil, "\nModule:\t%hu\n",         fippiconfig.MODULE_ID);
-         fprintf(fil, "Run Type:\t%hu\n",         0x401);
-         fprintf(fil, "Run Start Time :\t %lld \n\n", (long long)starttime);
-         fprintf(fil, "Event\tChannel\tTimeStamp\tEnergy\tRT\tApeak\tBsum\tQ0\tQ1\tPSAval\n");
-      }
-      */
-      // currently no local output file for 0x110, 0x111, 0x410, 0x411
-
-
+   if( (RunType==0x100) || (RunType==0x105) ){
+     // write a 0x100 header  -- actually there is no header, just events
+     sprintf(filename, "LMdata%d.bin", fippiconfig.MODULE_ID);
+     fil = fopen(filename,"wb");
+   }  
+     
+   if(RunType==0x400){
+     // write a 0x400 header
+     // this is limited to the first 4 channels for now
+     // fwrite is slow so we will write to a buffer, and then to the file.
+     sprintf(filename, "LMdata%d.b00", fippiconfig.MODULE_ID);
+     fil = fopen(filename,"wb");
+     buffer1[0] = BLOCKSIZE_400;
+     buffer1[1] = 0;                                       // module number (get from settings file?)
+     buffer1[2] = RunType;
+     buffer1[3] = CHAN_HEAD_LENGTH_400;
+     buffer1[4] = 0xFFFF;                                // legact coincidence pattern
+     buffer1[5] = fippiconfig.FASTTRIG_BACKLEN[0]*2;     // use ch.0's FASTTRIG_BACKLEN as CW
+     buffer1[7] = revsn>>16;               // HW revision from EEPROM
+     buffer1[12] = revsn & 0xFFFF;         // serial number from EEPROM
+     for( ch = 0; ch < NCHANNEL_MAX400; ch++) {         // TODO: Runtype 0x400 records all channels as 0-3 (using lowest 2 bits), but tracelength in header is from ch.0-3)
+         buffer1[6]   +=(int)floor((TL[ch]*TRACEENA[ch] + CHAN_HEAD_LENGTH_400) / BLOCKSIZE_400);         // combined event length, in blocks
+         buffer1[8+ch] =(int)floor((TL[ch]*TRACEENA[ch] + CHAN_HEAD_LENGTH_400) / BLOCKSIZE_400);			// each channel's event length, in blocks
+       //  printf( "N blocks %d \n",(int)floor((TL[ch]*TRACEENA[ch] + CHAN_HEAD_LENGTH_400) / BLOCKSIZE_400));
+     }
+     fwrite( buffer1, 2, FILE_HEAD_LENGTH_400, fil );     // write to file
+   }  
+   
+  /*
+   if(RunType==0x401){
+      // write a 0x401 header
+      sprintf(filename,"%s_m%d.dt3","LMdata",fippiconfig.MODULE_ID); //file name: .dt3
+      fil = fopen(filename, "w"); // create .dt3 file
+      fprintf(fil, "\nModule:\t%hu\n",         fippiconfig.MODULE_ID);
+      fprintf(fil, "Run Type:\t%hu\n",         0x401);
+      fprintf(fil, "Run Start Time :\t %lld \n\n", (long long)starttime);
+      fprintf(fil, "Event\tChannel\tTimeStamp\tEnergy\tRT\tApeak\tBsum\tQ0\tQ1\tPSAval\n");
+   }
+   */
+   // currently no local output file for 0x110, 0x111, 0x410, 0x411
 
 
    // initialize memories
@@ -373,164 +376,18 @@ int main(void) {
   mapped[AMZ_DEVICESEL] = CS_MZ;	            // select MZ
   if(SyncT==1)  mapped[ARTC_CLR] = 0x0001;   // any write will create a pulse to clear time stamps. This is ignored for WR_RTCtrl=2
   
-  if(WR_RTCtrl==3 || WR_RTCtrl==4)            // RunEnable/Live set via WR time comparison in Kintex or PZ, user specified start time from web query 
+  if(WR_RTCtrl>0)    // White Rabbit run synchronization
   {
-      // get form data
+     // get form data
      query = getenv("QUERY_STRING");
-     if( (query != NULL) && (sscanf(query,"WR_tm_tai_start=%llu",&WR_tm_tai_start)==1) )  {
-
-       WR_tm_tai_stop  =  WR_tm_tai_start + ReqRunTime - 1;
-
-
-       if(WR_RTCtrl==3)                           // RunEnable/Live set via WR time comparison in Kintex  
-       {
-         // write start/stop to both K7
-         // todo: this requires both K7s to be a WR slave with valid time from master
-         for(k7=0;k7<N_K7_FPGAS;k7++)
-         {     
-            mapped[AMZ_DEVICESEL] =  cs[k7];	   // select FPGA 
-            mapped[AMZ_EXAFWR] = AK7_PAGE;      // specify   K7's addr:    PAGE register
-            mapped[AMZ_EXDWR]  = PAGE_SYS;      //  PAGE 0: system, page 0x10n = channel n
-   
-            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+0;   // specify   K7's addr:    WR start time register
-            mapped[AMZ_EXDWR]  =  WR_tm_tai_start      & 0x00000000FFFF;
-            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+1;   // specify   K7's addr:    WR start time register
-            mapped[AMZ_EXDWR]  =  (WR_tm_tai_start>>16) & 0x00000000FFFF;
-            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+2;   // specify   K7's addr:    WR start time register
-            mapped[AMZ_EXDWR]  =  (WR_tm_tai_start>>32) & 0x00000000FFFF;
-      
-            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+0;   // specify   K7's addr:    WR stop time register
-            mapped[AMZ_EXDWR]  =  WR_tm_tai_stop      & 0x00000000FFFF;
-            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+1;   // specify   K7's addr:    WR stop time register
-            mapped[AMZ_EXDWR]  =  (WR_tm_tai_stop>>16) & 0x00000000FFFF;
-            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+2;   // specify   K7's addr:    WR stop time register
-            mapped[AMZ_EXDWR]  =  (WR_tm_tai_stop>>32) & 0x00000000FFFF; 
-         } // end K7s
-
-       } //end  WR_RTCtrl==3
-
-       if(WR_RTCtrl==4)   
-       {
-         // write start/stop to PZ
-         mapped[AMZ_WR_START_TAI]    =   WR_tm_tai_start      & 0x00000000FFFF;
-         mapped[AMZ_WR_START_TAI+1]  =  (WR_tm_tai_start>>16) & 0x00000000FFFF;
-         mapped[AMZ_WR_START_TAI+2]  =  (WR_tm_tai_start>>32) & 0x00000000FFFF;
-         mapped[AMZ_WR_STOP_TAI]     =   WR_tm_tai_stop       & 0x00000000FFFF;
-         mapped[AMZ_WR_STOP_TAI+1]   =  (WR_tm_tai_stop>>16)  & 0x00000000FFFF;
-         mapped[AMZ_WR_STOP_TAI+2]   =  (WR_tm_tai_stop>>32)  & 0x00000000FFFF; 
-       }  //end  WR_RTCtrl==4
-
-
-     } else {
-         printf( "WARNING: No start time given for WR_RTCtrl=3 (or 4). Continuing as WR_RTCtrl=1 (or 2) \n" );
-         WR_RTCtrl = WR_RTCtrl - 2;
-     }
-
-
-  }   //end  WR_RTCtrl==3 or 4
-  
-
-  if(WR_RTCtrl==1)                           // RunEnable/Live set via WR time comparison in Kintex  (if startT < WR time < stopT => RunEnable=1) 
-  {
-      mapped[AMZ_DEVICESEL] = CS_K1;	      // specify which K7 
-      mapped[AMZ_EXAFWR] = AK7_PAGE;         // specify   K7's addr:    PAGE register
-      mapped[AMZ_EXDWR]  = PAGE_SYS;         // PAGE 0: system, page 0x10n = channel n
-
-      // check if WR locked
-      mapped[AMZ_EXAFRD] = AK7_CSROUT;   
-      tmp0 =  mapped[AMZ_EXDRD];   
-      if(SLOWREAD)      tmp0 =  mapped[AMZ_EXDRD];
-      if( (tmp0 & 0x0300) ==0) {
-          printf( "WARNING: WR link down or time not valid, please check via minicom\n" );
-      }
-
-      // get current WR time
-      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+0;   
-      tmp0 =  mapped[AMZ_EXDRD];
-      if(SLOWREAD)      tmp0 =  mapped[AMZ_EXDRD];
-      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+1;   
-      tmp1 =  mapped[AMZ_EXDRD];
-      if(SLOWREAD)      tmp1 =  mapped[AMZ_EXDRD];
-      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+2;   
-      tmp2 =  mapped[AMZ_EXDRD];
-      if(SLOWREAD)      tmp2 =  mapped[AMZ_EXDRD];
-      WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
-
-      //find next "round" time point 
-      WR_tm_tai_next = WR_TAI_STEP*(unsigned long long)floor(WR_tm_tai/WR_TAI_STEP)+ WR_TAI_STEP;   // next coarse time step
-     // if( WR_tm_tai_next - WR_tm_tai < WR_TAI_MARGIN)                                          // if too close, 
-     //       WR_tm_tai_next = WR_tm_tai_next + WR_TAI_STEP;                                     // one more step   
-     // probably bogus. a proper scheme to ensure multiple modules start at the same time should be implemented on the DAQ network master 
-    
-      WR_tm_tai_start =  WR_tm_tai_next;
-      WR_tm_tai_stop  =  WR_tm_tai_next + ReqRunTime - 1;
-      ReqRunTime = ReqRunTime + WR_TAI_STEP;    // increase time for local DAQ counter accordingly
-
-      printf( "Current WR time %llu s\n",WR_tm_tai );
-      printf( "Start time %llu s\n",WR_tm_tai_start );
-      printf( "Stop time %llu s\n",WR_tm_tai_stop +1);
-
-      // write start/stop to both K7
-      // todo: this requires both K7s to be a WR slave with valid time from master
-      for(k7=0;k7<N_K7_FPGAS;k7++)
-      {     
-         mapped[AMZ_DEVICESEL] =  cs[k7];	   // select FPGA 
-         mapped[AMZ_EXAFWR] = AK7_PAGE;      // specify   K7's addr:    PAGE register
-         mapped[AMZ_EXDWR]  = PAGE_SYS;      //  PAGE 0: system, page 0x10n = channel n
-
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+0;   // specify   K7's addr:    WR start time register
-         mapped[AMZ_EXDWR]  =  WR_tm_tai_start      & 0x00000000FFFF;
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+1;   // specify   K7's addr:    WR start time register
-         mapped[AMZ_EXDWR]  =  (WR_tm_tai_start>>16) & 0x00000000FFFF;
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+2;   // specify   K7's addr:    WR start time register
-         mapped[AMZ_EXDWR]  =  (WR_tm_tai_start>>32) & 0x00000000FFFF;
-   
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+0;   // specify   K7's addr:    WR stop time register
-         mapped[AMZ_EXDWR]  =  WR_tm_tai_stop      & 0x00000000FFFF;
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+1;   // specify   K7's addr:    WR stop time register
-         mapped[AMZ_EXDWR]  =  (WR_tm_tai_stop>>16) & 0x00000000FFFF;
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+2;   // specify   K7's addr:    WR stop time register
-         mapped[AMZ_EXDWR]  =  (WR_tm_tai_stop>>32) & 0x00000000FFFF; 
-      } // end K7s
-  }  
-
-  if(WR_RTCtrl==2)                       // RunEnable/Live set via WR time comparison in PicoZed (if startT < WR time < stopT => RunEnable=1) 
-  {
-      mapped[AMZ_DEVICESEL] = CS_MZ;	   // specify which K7 
-  
-      // check if WR locked
-      tmp0 =  mapped[AMZ_CSROUTL];    
-      if( (tmp0 & 0x0008) ==0) {
-          printf( "WARNING: WR link down or time not valid (CSR = 0x%X, please check via minicom\n", tmp0 );
-      }
-
-      // get current WR time  
-      tmp0 =  mapped[AMZ_WR_READ_TAI+0];    
-      tmp1 =  mapped[AMZ_WR_READ_TAI+1]; 
-      tmp2 =  mapped[AMZ_WR_READ_TAI+2];
-      WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
-
-      //find next "round" time point 
-      WR_tm_tai_next = WR_TAI_STEP*(unsigned long long)floor(WR_tm_tai/WR_TAI_STEP)+ WR_TAI_STEP;   // next coarse time step 
-     // probably bogus. a proper scheme to ensure multiple modules start at the same time should be implemented on the DAQ network master 
-    
-      WR_tm_tai_start =  WR_tm_tai_next;
-      WR_tm_tai_stop  =  WR_tm_tai_next + ReqRunTime - 1;
-      ReqRunTime = ReqRunTime + WR_TAI_STEP;    // increase time for local DAQ counter accordingly
-
-      printf( "Current WR time %llu (0x %x %x %x)\n",WR_tm_tai, tmp2, tmp1, tmp0 );
-      printf( "Start time %llu\n",WR_tm_tai_start );
-      printf( "Stop time %llu\n",WR_tm_tai_stop +1);
-
-      // write start/stop to PZ
-      mapped[AMZ_WR_START_TAI]    =   WR_tm_tai_start      & 0x00000000FFFF;
-      mapped[AMZ_WR_START_TAI+1]  =  (WR_tm_tai_start>>16) & 0x00000000FFFF;
-      mapped[AMZ_WR_START_TAI+2]  =  (WR_tm_tai_start>>32) & 0x00000000FFFF;
-      mapped[AMZ_WR_STOP_TAI]     =   WR_tm_tai_stop      & 0x00000000FFFF;
-      mapped[AMZ_WR_STOP_TAI+1]   =  (WR_tm_tai_stop>>16) & 0x00000000FFFF;
-      mapped[AMZ_WR_STOP_TAI+2]   =  (WR_tm_tai_stop>>32) & 0x00000000FFFF; 
-
-  }  
+     if(query != NULL) 
+         sscanf(query,"WR_tm_tai_start=%llu",&WR_tm_tai_start);
+     else  
+         WR_tm_tai_start = 0;
+     
+     // call subroutine. Updates ReqRunTime to accommodate WR setup delay
+     ReqRunTime = WRrunstart(mapped, WR_RTCtrl, ReqRunTime, WR_tm_tai_start );
+  }
 
   // disable MCA fifo output when not needed 
   mapped[AMZ_DEVICESEL] = CS_MZ;	// select MZ
@@ -566,8 +423,6 @@ int main(void) {
 
         E FIFO for MCA                     0-2: read AK7_NEXTEVENT to advance          3: UDP process advances read point         4: UDP process advances read point
                                                (FIFO never read, full flag ignored)      (FIFO never read, full flag ignored)        SW reads AMZ_RDMCA0 
-
-
   */
 
     if(AllowStop)
@@ -586,7 +441,7 @@ int main(void) {
 
     
      //----------- Periodically read BL and update average -----------
-     // this will be moved into the FPGA soon
+     // legacy code: this has been moved into the FPGA and DF<2 is not really supported any more
      if(fippiconfig.DATA_FLOW<2) {   // full BL read (DATA_FLOW==0) or combined BL read  (DATA_FLOW==1)
         if((loopcount % BLREADPERIOD == 0) || (loopcount ==0) ) {     // sometimes 0 mod N not zero and first few events have wrong E? watch
            for(k7=0;k7<N_K7_FPGAS;k7++)
@@ -672,7 +527,7 @@ int main(void) {
               }          // end for channels
            }             // end for K7s
         }             // end periodicity check
-     } // end don't use FW E comp (DATA_FLOW<2) 
+     } // end legacy code (DATA_FLOW<2) 
          
       
      // -----------poll for events -----------
@@ -680,39 +535,51 @@ int main(void) {
       
      for(k7=0;k7<N_K7_FPGAS;k7++)
      {
-
+          
+        // .................................... event readout DATA_FLOW=4  .................................
         // DATA_FLOW == 4 : K7 streams UDP data to Ethernet automatically and MCA data to a FIFO in MZ
-
         if(fippiconfig.DATA_FLOW == 4)
         {
            // read MCA FIFOs
            mapped[AMZ_DEVICESEL] = CS_MZ;	// select MZ
            tmp2 = mapped[AMZ_CSROUTL];
-           //if(eventcount<maxmsg) printf( "CSR: 0x%x\n", tmp0 );
 
            // for Kintex #0
            if ( (tmp2 & 0x00000080)>0 )  // check MCAdataready bit
            {
               
               if(MCA0counts==0) tmp0 = mapped[AMZ_RDMCA0]; // dummy read
-              tmp0 = mapped[AMZ_RDMCA0+1];   // channel and other info
-              tmp1 = mapped[AMZ_RDMCA0];   // energy  and advance FIFO
-              ch       = (tmp0 & 0x7); // + NCHANNELS_PER_K7*((tmp0 & 0x8) >> 3);   // 3 bits for channel number, bit 4 is K7 ID
-              energy = tmp1 & 0xFFFE;
-              over     = (tmp0 & 0x10) >> 4;    // negative or overflow
-              pileup   = (tmp0 & 0x20) >> 5;    // pileup
-              if(eventcount<maxmsg) printf( "K7#0: CSR: 0x%x MCA FIFO: ch %d, E %d (0x %x %x)\n", tmp2, ch, energy, tmp0, tmp1 );
-              //if(ch!=13) printf( "CSR: 0x%x MCA FIFO: ch %d, E %d (0x %x %x)\n",tmp2, ch, energy, tmp0, tmp1 );                 
+              tmp0 = mapped[AMZ_RDMCA0+1];      // channel and other info
+              tmp1 = mapped[AMZ_RDMCA0];        // energy  and advance FIFO
+              ch       = (tmp0 & 0x7);          // + NCHANNELS_PER_K7*((tmp0 & 0x8) >> 3);   // 3 bits for channel number, bit 4 is K7 ID
+              energy   = tmp1 & 0xFFFE;
+              over     = (tmp0 & 0x10) > 0;     // negative or overflow
+              pileup   = (tmp0 & 0x20) > 0;     // pileup
+              passTTCL = (tmp0 & 0x80) == 0;    // pass if (no VETO) OR (TTCL ok)
+              if(eventcount<maxmsg) printf( "K7#0: CSR: 0x%x MCA FIFO: ch %d, E %d (0x %x %x)\n", tmp2, ch, energy, tmp0, tmp1 );                
 
-              if( (PILEUPCTRL[ch]==0)     || (PILEUPCTRL[ch]==1 && !pileup )    )  // this pileup check is probably redundant, also in FPGA 
+              if( (PILEUPCTRL[ch]==0)     || (PILEUPCTRL[ch]==1 && !pileup )    )  // this pileup check is probably redundant, also applied in FPGA 
               {
-                 bin = energy >> Binfactor[ch];
-                 if( (bin<MAX_MCA_BINS) && (over==0) ) {
-                    mca[ch][bin] =  mca[ch][bin] + 1;	// increment mca
-                    bin = bin >> WEB_LOGEBIN;
-                    if(bin>0) wmca[ch][bin] = wmca[ch][bin] + 1;	// increment wmca
-                 } 
+                 if(passTTCL)  // only bin events that are acceptable  (also redundant)
+                 {
+                    bin = energy >> Binfactor[ch];
+                    if( (bin<MAX_MCA_BINS) && (over==0) ) {
+                       mca[ch][bin] =  mca[ch][bin] + 1;	// increment mca
+                       bin = bin >> WEB_LOGEBIN;
+                       if(bin>0) wmca[ch][bin] = wmca[ch][bin] + 1;	// increment wmca
+                       if(eventcount<maxmsg) printf( "  event binned into MCA (pileup %d, valid %d) \n", pileup, passTTCL);
+                    } 
+                 }
+                 else
+                 {
+                    if(eventcount<maxmsg) printf( "  event rejected from histogramming (valid %d) \n", passTTCL);
+                 }
               }
+              else
+              {
+                 if(eventcount<maxmsg) printf( "  event rejected from histogramming (pileup %d, valid %d) \n", pileup, passTTCL);
+              }
+             
              
               MCA0counts++;
               eventcount++;    
@@ -725,23 +592,35 @@ int main(void) {
            {
            
               if(MCA1counts==0) tmp0 = mapped[AMZ_RDMCA1]; // dummy read
-              tmp0 = mapped[AMZ_RDMCA1+1];   // channel and other info
-              tmp1 = mapped[AMZ_RDMCA1];   // energy  and advance FIFO
-              ch       = (tmp0 & 0x7) + NCHANNELS_PER_K7; //*((tmp0 & 0x8) >> 3);   // 3 bits for channel number, bit 4 is K7 ID
+              tmp0 = mapped[AMZ_RDMCA1+1];                  // channel and other info
+              tmp1 = mapped[AMZ_RDMCA1];                    // energy  and advance FIFO
+              ch       = (tmp0 & 0x7) + NCHANNELS_PER_K7;   //*((tmp0 & 0x8) >> 3);   // 3 bits for channel number, bit 4 is K7 ID
               energy = tmp1 & 0xFFFE;
-              over     = (tmp0 & 0x10) >> 4;    // negative or overflow
-              pileup   = (tmp0 & 0x20) >> 5;    // pileup
+              over     = (tmp0 & 0x10) > 0;                 // negative or overflow
+              pileup   = (tmp0 & 0x20) > 0;                 // pileup
+              passTTCL = (tmp0 & 0x80) == 0;                // VETO OR !TTCL
               if(eventcount<maxmsg) printf( "K7#1: CSR: 0x%x MCA FIFO: ch %d, E %d (0x %x %x)\n", tmp2, ch, energy, tmp0, tmp1 );
-              //if(ch!=13) printf( "CSR: 0x%x MCA FIFO: ch %d, E %d (0x %x %x)\n",tmp2, ch, energy, tmp0, tmp1 );                 
 
               if( (PILEUPCTRL[ch]==0)     || (PILEUPCTRL[ch]==1 && !pileup )    )  // this pileup check is probably redundant, also in FPGA 
               {
-                 bin = energy >> Binfactor[ch];
-                 if( (bin<MAX_MCA_BINS) && (over==0) ) {
-                    mca[ch][bin] =  mca[ch][bin] + 1;	// increment mca
-                    bin = bin >> WEB_LOGEBIN;
-                    if(bin>0) wmca[ch][bin] = wmca[ch][bin] + 1;	// increment wmca
-                 } 
+                 if(passTTCL)  // only bin events that are acceptable
+                 {
+                    bin = energy >> Binfactor[ch];
+                    if( (bin<MAX_MCA_BINS) && (over==0) ) {
+                       mca[ch][bin] =  mca[ch][bin] + 1;	// increment mca
+                       bin = bin >> WEB_LOGEBIN;
+                       if(bin>0) wmca[ch][bin] = wmca[ch][bin] + 1;	// increment wmca
+                       if(eventcount<maxmsg) printf( "  event binned into MCA (pileup %d, valid %d) \n", pileup, passTTCL);
+                    } 
+                 }
+                 else
+                 {
+                    if(eventcount<maxmsg) printf( "  event rejected from histogramming (valid %d) \n", passTTCL);
+                 }
+              }
+              else
+              {
+                 if(eventcount<maxmsg) printf( "  event rejected from histogramming (pileup %d, valid %d) \n", pileup, passTTCL);
               }
              
               MCA1counts++;
@@ -752,6 +631,8 @@ int main(void) {
            // todo: checking both FPGAs in each loop. Can move DF=4 outside the k7 loop. 
 
         }  // end DATA_FLOW==4
+
+         // .................................... event readout DATA_FLOW<4  .................................
         else 
         { 
            // Non-AutoUDP: ARM needs to poll K7 if data ready
@@ -786,7 +667,7 @@ int main(void) {
            // very slow and inefficient; can improve or better bypass completely in final WR data out implementation
            if(evstats && udpok)     // if there are events in any [good] channel
            {                    
-              if(eventcount<maxmsg) printf( "\nK7 0 read from AK7_SYSSYTATUS (0x85), masked for good channels: 0x%X\n", evstats );
+              if(eventcount+rejectcount<maxmsg) printf( "\nK7 %d read from AK7_SYSSYTATUS (0x85), masked for good channels: 0x%X\n",k7, evstats );
 
               for( ch_k7=0; ch_k7 < NCHANNELS_PER_K7; ch_k7++)
               {
@@ -797,19 +678,7 @@ int main(void) {
                  {
                     mapped[AMZ_EXAFWR] = AK7_PAGE;         // specify   K7's addr     addr 3 = channel/system
                     mapped[AMZ_EXDWR]  = PAGE_CHN+ch_k7;   //                         0x10n  = channel n     -> now addressing channel ch page of K7-0
-                    
-                    // read for nextevent
-                    /* WH 1/4/23: advance E fifo AFTER read now
-                    // but in DF=3, moving data to UDP already advances the E fifo, so it's not needed  
-                    if(fippiconfig.DATA_FLOW < 3) {                     
-                       mapped[AMZ_EXAFRD] = AK7_NEXTEVENT;              // select the "nextevent" address in channel's page
-                       tmp0 = mapped[AMZ_EXDWR];                        // any read ok, advances E fifo 
-
-            //           mapped[AMZ_EXAFRD] = AK7_HDRMEM_D;               // write to  k7's addr for read -> reading from AK7_HDRMEM_D channel header fifo, low 16bit  and advance FIFO
-            //           tmp0 = mapped[AMZ_EXDRD];                        //any read ok for this dummy read
-                    }
-                    */
-      
+                         
                     // read 1 64bit word from header (CFD data requiring division, pileup info etc)
                     // by now,  E is computed in FPGA and is only calculated here in non-UDP mode 
                     k=0;
@@ -829,26 +698,28 @@ int main(void) {
                         if(SLOWREAD)   hdr[4*k+0] = mapped[AMZ_EXDRD];      // read 16 bits
                     }
                     // the next 5 words only need to be read if storing data locally 
- 
-    
-               //     if(eventcount<maxmsg) { 
-               //        printf( "Ch. %d: Event count [ch] %d, total %d\n",ch, eventcount_ch[ch],eventcount );
-               //        printf( "Read 0 H-L: 0x %X %X %X %X\n",hdr[ 3], hdr[ 2], hdr[ 1], hdr[ 0] );
-               //     }                     
+                    if(eventcount+rejectcount<maxmsg)  printf( " Ch. %d: Event count [ch] %d, total %d, rejected %d\n",ch, eventcount_ch[ch],eventcount,rejectcount );
+                    if(eventcount+rejectcount<maxmsg)  printf( " Read 0 H-L: 0x %X %X %X %X\n",hdr[ 3], hdr[ 2], hdr[ 1], hdr[ 0] );
+                 
 
-                    // extract pileup bit   
+                    // extract pileup and accept bits   
                     if(fippiconfig.DATA_FLOW < 3) {
                         pileup  = (hdr[0] & 0x0008) >0;
+                        passTTCL= (hdr[0] & 0x1000) >0;
                     } else {
-                        pileup  = (hdr[2] & 0x0100) >0;
+                        pileup  = (hdr[2] & 0x0100) >0;                                               
+                        if( RunType>0x400) 
+                           passTTCL = 1;    // TODO: run types with "long headers" do not report the Valid flag in hdr[1-3] and hdr[0] is not read in DF=3
+                        else
+                           passTTCL= (hdr[2] & 0x0200) >0;
                     }
                     passpileup = (PILEUPCTRL[ch]==0)     || (PILEUPCTRL[ch]==1 && !pileup ); // either don't care  OR pilup test required and  pileup flag not set
-                    // printf( "ch. %d, cfdout1 %d, cfdout2 %d, cfdsrc %d, cfdfrc %d ",ch,cfdout1,cfdout2,cfdsrc,cfdfrc); 
+                    // if(eeventcount+rejectcount<maxmsg) printf( "ch. %d, cfdout1 %d, cfdout2 %d, cfdsrc %d, cfdfrc %d ",ch,cfdout1,cfdout2,cfdsrc,cfdfrc);
+                    if(eventcount+rejectcount<maxmsg) printf( " Ch. %d, passpileup %d, passTTCL %d \n",ch,passpileup,passTTCL);
        
-                    if(passpileup)
-                    //if( (PILEUPCTRL[ch]==0)     || (PILEUPCTRL[ch]==1 && !pileup )    )
-                    {    // either don't care  OR pilup test required and  pileup bit not set
-                         //printf( "pileup test passed, start computing E\n");      
+                    if(passpileup & passTTCL)
+                    {   
+                       //printf( " pileup test passed, start computing E\n");      
            
                        // cfd needs some more computation
                        cfdout1 =  hdr[0]     + ((hdr[1]&0xFF) <<16);
@@ -878,68 +749,49 @@ int main(void) {
                           cfd = (cfd&0x7FFF);                  // combine cfd value and bits
                           cfd = cfd + (cfdfrc<<15);
                        }     
+                       // TODO: add CFD 500 MHz
              
                        // read FPGA E
                        mapped[AMZ_EXAFRD] = AK7_EFIFO;              // select the "EFIFO" address in channel's page
                        energyF = mapped[AMZ_EXDWR];                 // read 16 bits
                        if(SLOWREAD)  energyF = mapped[AMZ_EXDRD];   // read 16 bits
-                       //if(eventcount<maxmsg) printf( "Read FPGA E: %d\n",energyF ); 
+                       if(eventcount<maxmsg) printf(" Read FPGA E: %d\n",energyF ); 
 
-
-                    // WH 1/4/23: advance E fifo AFTER read now
-                    // but in DF=3, moving data to UDP already advances the E fifo, so it's not needed  
-                    if(fippiconfig.DATA_FLOW < 3) {                     
-                       mapped[AMZ_EXAFRD] = AK7_NEXTEVENT;              // select the "nextevent" address in channel's page
-                       tmp0 = mapped[AMZ_EXDWR];                        // any read ok, advances E fifo 
-
-            //           mapped[AMZ_EXAFRD] = AK7_HDRMEM_D;               // write to  k7's addr for read -> reading from AK7_HDRMEM_D channel header fifo, low 16bit  and advance FIFO
-            //           tmp0 = mapped[AMZ_EXDRD];                        //any read ok for this dummy read
-                    }
+                       // Advance E fifo AFTER read. But in DF=3, moving data to UDP already advances the E fifo, so it's not needed  
+                       if(fippiconfig.DATA_FLOW < 3) {                     
+                          mapped[AMZ_EXAFRD] = AK7_NEXTEVENT;              // select the "nextevent" address in channel's page
+                          tmp0 = mapped[AMZ_EXDWR];                        // any read ok, advances E fifo 
+                       }
                     
+                       // at this point, key data of event is known. Now save to local or remote storage    
 
-
-                       // at this point, key data of event is known. Now can
-                       // [optional] send it to DM for further decision making (to be implemented), then
-                       //  initiate Ethernet data output of full event data  
-                       //           OR
-                       // save to local storage    
-
-                       if(fippiconfig.DATA_FLOW == 3)             // Ethernet storage 
+                       if(fippiconfig.DATA_FLOW == 3)             // Ethernet remote storage 
                        {
-                        
-                         /* the start UDP action also now advances the trace address
-                          mapped[AMZ_EXAFRD] = AK7_SKIPTRACE;              // select the "skiptrace" address in channel's page
-                          tmp0 = mapped[AMZ_EXDWR];                        // any read ok  -- advances read pointer to start of next trace 
-                         */
-                      
+                                             
                           mapped[AMZ_EXAFWR] = AK7_PAGE;         // specify   K7's addr:    PAGE register
                           mapped[AMZ_EXDWR]  = PAGE_SYS;         //  PAGE 0: system, page 0x10n = channel n
                      
                           mapped[AMZ_EXAFWR] =  AK7_ETH_CFD;     // specify   K7's addr:    cfd for Eth data packet
                           mapped[AMZ_EXDWR]  =  cfd;
 
-                          // debug: disable DF readout for some time
                           w0 = 0;                 
                           // w0 = (1-passpileup) <<2;            // if not passing pilup, only read data from channel memory, but don't move into output FIFO 
                           // if( eventcount<50000) w0=8;         // debug: disable DF readout for some time
                           mapped[AMZ_EXAFWR] =  AK7_ETH_CTRL;    // specify   K7's addr:    Ethernet output control register  [4-bit ch# | 4-bit type of transfer | 8 bit Trace length in blocks ]
                                                                  // type of transfer: bit 3 pause UDP output (memory still is filled); bit 2 read event data but don't move into memory, bit 1 unused, bit 0 trace or no trace                               
-                          mapped[AMZ_EXDWR]  =  (ch_k7<<12) + ((w0+TRACEENA[ch])<<8) + (TL[ch]>>5);  // This write starts the UDP transfer 
-
-                          if(eventcount<maxmsg) printf( "Read FPGA E: %d\n",energyF ); 
-
+                          mapped[AMZ_EXDWR]  =  (ch_k7<<12) + ((w0+TRACEENA[ch])<<8) + (TL[ch]>>5);  // This write starts the transfer to memory, then UDP 
                           
                         //  if(passpileup)  
                         //  {
-                              if(eventcount<maxmsg)  printf( "issued command to UDP send\n");
+                              if(eventcount<maxmsg)  printf( " issued command to send UDP package\n");
                          /* }
                           else
                           {
                           if (rejectcount <maxmsg)
                            {
-                             printf( "issued command to advance pointers for piled up event w0=0x%x, passpileup=%d \n",w0,passpileup );
-                             printf( "Ch. %d: Event count [ch] %d, total %d\n",ch, eventcount_ch[ch],eventcount );
-                             printf( "Read 0 H-L: 0x %X %X %X %X\n",hdr[ 3], hdr[ 2], hdr[ 1], hdr[ 0] );
+                             printf( " issued command to advance pointers for piled up event w0=0x%x, passpileup=%d \n",w0,passpileup );
+                             printf( " Ch. %d: Event count [ch] %d, total %d\n",ch, eventcount_ch[ch],eventcount );
+                             printf( " Read 0 H-L: 0x %X %X %X %X\n",hdr[ 3], hdr[ 2], hdr[ 1], hdr[ 0] );
                              rejectcount++;
                            }
                          }
@@ -994,55 +846,40 @@ int main(void) {
                              }  // end trace length   
                           }   // end if trace enabled
 
-                          if(eventcount<maxmsg) { 
-                             //printf( "Ch. %d: Event count [ch] %d, total %d\n",ch, eventcount_ch[ch],eventcount );
-                             printf( "Read 1 H-L: 0x %X %X %X %X\n",hdr[ 3], hdr[ 2], hdr[ 1], hdr[ 0] );
-                             printf( "Read 2 H-L: 0x %X %X %X %X\n",hdr[ 7], hdr[ 6], hdr[ 5], hdr[ 4] );
-                             printf( "Read 3 H-L: 0x %X %X %X %X\n",hdr[11], hdr[10], hdr[ 9], hdr[ 8] );
-                             printf( "Read 4 H-L: 0x %X %X %X %X\n",hdr[15], hdr[14], hdr[13], hdr[12] );
-                             printf( "Read 5 H-L: 0x %X %X %X %X\n",hdr[19], hdr[18], hdr[17], hdr[16] );
-                          }
+                          // if(eventcount<maxmsg) printf( " Read 1 H-L: 0x %X %X %X %X\n",hdr[ 3], hdr[ 2], hdr[ 1], hdr[ 0] );
+                          // if(eventcount<maxmsg) printf( " Read 2 H-L: 0x %X %X %X %X\n",hdr[ 7], hdr[ 6], hdr[ 5], hdr[ 4] );
+                          // if(eventcount<maxmsg) printf( " Read 3 H-L: 0x %X %X %X %X\n",hdr[11], hdr[10], hdr[ 9], hdr[ 8] );
+                          // if(eventcount<maxmsg) printf( " Read 4 H-L: 0x %X %X %X %X\n",hdr[15], hdr[14], hdr[13], hdr[12] );
+                          // if(eventcount<maxmsg) printf( " Read 5 H-L: 0x %X %X %X %X\n",hdr[19], hdr[18], hdr[17], hdr[16] );
 
                           // now assemble list mode data
                           timeL   =  hdr[2]     + (hdr[3]<<16);
                           timeH   =  hdr[4];
-                          //out7    =  0;           // baseline placeholder, float actually
                           exttsL  =  hdr[16]    + (hdr[17]<<16);
                           exttsH  =  hdr[18];
                           tsum    =  hdr[8]     + (hdr[9]<<16);
                           lsum    =  hdr[10]    + (hdr[11]<<16);
                           gsum    =  hdr[12]    + (hdr[13]<<16);
 
-                          if(eventcount<maxmsg) printf( "tsum %d, lsum %d, gsum %d\n",tsum, lsum, gsum );  
-                          if(eventcount<maxmsg) printf( "timeL %d, timeH %d\n",timeL, timeH);  
-                          if(eventcount<maxmsg) printf( "BL avg: %f\n",baseline[ch] );
-                          if(eventcount<maxmsg) printf( "BL avg FPGA: 0x%x \n", wsum );
-                          // printf( "timeL %d, extTSL %d\n",timeL, exttsL );
+                          //if(eventcount<maxmsg) printf( " tsum %d, lsum %d, gsum %d\n",tsum, lsum, gsum );  
+                          //if(eventcount<maxmsg) printf( " timeL %d, timeH %d\n",timeL, timeH);  
+                          //if(eventcount<maxmsg) printf( " BL avg: %f\n",baseline[ch] );
+                          //if(eventcount<maxmsg) printf( " BL avg FPGA: 0x%x \n", wsum );
 
                           // compute and histogram E
                           ph = C1[ch]*(double)lsum+Cg[ch]*(double)gsum+C0[ch]*(double)tsum;
-                          if(eventcount<maxmsg) printf( "raw ph: %f\n",ph );
-
-                          //printf("ph %f, BLavg %f, E %f\n",ph,baseline[ch], ph-baseline[ch]);
-                          //printf("lsum    %d, tsum     %d, gsum    %d\n",lsum, tsum, gsum);
-                          //printf("c1      %f, c0       %f, cg      %f\n",C1[ch], C0[ch], Cg[ch]);
-                          //printf("c1      %f, c0       %f, cg      %f\n",C1[ch]* 67108864, C0[ch]* 67108864 *(-1.0), Cg[ch]* 67108864);
-                          //printf("lsum*c1 %f, tsum*c0  %f, gsum*cg %f\n",lsum*C1[ch], tsum*C0[ch], gsum*Cg[ch]);
-                          //printf("ch %d: Energy wsum ARM %f FPGA %d \n ",ch, ph, wsum);
-                          //printf("lsum %d, tsum %d gsum %d; E (ph) ARM FPGA %f   ",lsum, tsum, gsum, ph);
+                          //if(eventcount<maxmsg) printf( " raw ph: %f\n",ph );
    
                           ph = (double)ph-baseline[ch];  // ph = ph-baseline[ch];
                           if ((ph<0.0)|| (ph>65536.0))	ph =0.0;	// out of range energies -> 0
                           energy = (int)floor(ph);
-                          if(eventcount<maxmsg)  printf("ch %d: Energy ph ARM %05d ",ch, energy);
+                          if(eventcount<maxmsg)  printf(" ch %d: Energy ph ARM %05d \n",ch, energy);
 
                           if(fippiconfig.DATA_FLOW == 2)  energy = energyF & 0xFFFE;   // overwrite local computation with FPGA result  (bit 0 is pileup)
                      
-                          if(eventcount<maxmsg)  printf("Energy ph FPGA %05d \n",energyF);      //if(eventcount % 100 == 0)
-
-                          // compute PSA results from raw data
+                          // compute PSA results from raw data  
                           // need to subtract baseline in correct scale (1/4) and length (QDC#_LENGTH[ch])
-                          // printf( "Read PSA words (12-15): %d %d %d %d\n",hdr[12], hdr[13], hdr[14], hdr[15] );
+                          // printf( " Read PSA words (12-15): %d %d %d %d\n",hdr[12], hdr[13], hdr[14], hdr[15] );
                           psa_base = hdr[0];
                           if( fippiconfig.QDCLen4[ch]) 
                              bscale = 32.0;
@@ -1068,6 +905,7 @@ int main(void) {
                           else
                              psa_R = 0;
    
+                          // write event to LM data file 
                           if( (RunType==0x100)  || (RunType==0x105) )   
                           {   
                             /* if(RunType==0x104){     // or 0x110, 111
@@ -1087,7 +925,6 @@ int main(void) {
                              memcpy( buffer2 + 4,  &(timeL), 4 );
                              memcpy( buffer2 + 8,  &(out2),  4 );
                              memcpy( buffer2 + 12, &(out3),  4 );
-
                              out2 = hdr[8];
                              memcpy( buffer2 + 16, &(out2),  2 );
                              out2 = hdr[9];
@@ -1103,13 +940,11 @@ int main(void) {
                              out2 = hdr[14];
                              memcpy( buffer2 + 28, &(out2),  2 );
                              out2 = hdr[15];
-                             memcpy( buffer2 + 30, &(out2),  2 );
-      
+                             memcpy( buffer2 + 30, &(out2),  2 );     
                              //memcpy( buffer2 + 16, &(tsum),  4 );
                              //memcpy( buffer2 + 20, &(lsum),  4 );   
                              //memcpy( buffer2 + 24, &(gsum),  4 );
-                             //memcpy( buffer2 + 28, &(out7),  4 );      // BL
-      
+                             //memcpy( buffer2 + 28, &(out7),  4 );      // BL      
                              memcpy( buffer2 + 32, &(exttsL), 4 );      // ext TS
                              memcpy( buffer2 + 36, &(exttsH), 4 );      // ext TS
                              fwrite( buffer2, 1, CHAN_HEAD_LENGTH_100*4, fil );
@@ -1165,14 +1000,14 @@ int main(void) {
                           {
                           // ASCII file, no trace (like AutoPRocessLMData=3)
                              chw = ch & 0x03;         // map channels into 0-3, assume only one set of 4 connected
-                             WR_tm_tai = (unsigned long long)timeL + TWOTO32* (unsigned long long)timeH;  // full timestamp
+                             tmp_ll = (unsigned long long)timeL + TWOTO32* (unsigned long long)timeH;  // full timestamp 
                              // "Event\tChannel\tTimeStamp\tEnergy\tRT\tApeak\tBsum\tQ0\tQ1\tPSAval\n
                              fprintf(fil, "%u\t%hu\t%llu\t%hu\t%hu\t%hu\t%hu\t%hu\t%hu\t%hu\n", 
                                 eventcount, 
                                 chw,
-                                WR_tm_tai>>1,     // full timestamp in 2ns units  
+                                tmp_ll>>1,     // full timestamp in 2ns units  
                                 energy, 
-                                0,    // no rise time
+                                0,             // no rise time
                                 psa_ampl, 
                                 psa_base,
                                 psa_Q0,
@@ -1192,47 +1027,51 @@ int main(void) {
                      
                        eventcount++;    
                        eventcount_ch[ch]++;
-                    }
-                    else  // event not acceptable (piled up) 
-                    {  
-                        // eventcount_ch[ch+1]++; // debug  
-                        //printf( " piled up event %d??\n", passpileup);
-                        rejectcount++;
-                    
-                        if(fippiconfig.DATA_FLOW == 3) {
+                    }     // end good event processing
 
-                          //w0 = 0;                 
-                          w0 = (1-passpileup) <<2;               // if not passing pilup, only read data from channel memory, but don't move into output FIFO 
+                    // .................................... bad events handling .................................
+                    else  // event not acceptable (piled up)      
+                    {  
+                       rejectcount++;
+                    
+                       if(fippiconfig.DATA_FLOW == 3) {
+
+                          //w0 = 0;  
+                          if( !passpileup | !passTTCL)  w0 = 4; // if not passing pilup and TTCL, only read data from channel memory, but don't move into output FIFO 
+                          //w0 = (1-passpileup) <<2;             // if not passing pilup, only read data from channel memory, but don't move into output FIFO 
                           // if( eventcount<50000) w0=8;         // debug: disable DF readout for some time
                           mapped[AMZ_EXAFWR] =  AK7_ETH_CTRL;    // specify   K7's addr:    Ethernet output control register  [4-bit ch# | 4-bit type of transfer | 8 bit Trace length in blocks ]
                                                                  // type of transfer: bit 3 pause UDP output (memory still is filled); bit 2 read event data but don't move into memory, bit 1 unused, bit 0 trace or no trace                               
                           mapped[AMZ_EXDWR]  =  (ch_k7<<12) + ((w0+TRACEENA[ch])<<8) + (TL[ch]>>5);  // This write starts the UDP transfer 
 
-                           if (rejectcount <maxmsg)
-                           {
-                             printf( "issued command to advance pointers for piled up event w0=0x%x, passpileup=%d \n",w0,passpileup );
-                             //printf( "Ch. %d: Event count [ch] %d, total %d\n",ch, eventcount_ch[ch],eventcount );
-                             //printf( "Read 0 H-L: 0x %X %X %X %X\n",hdr[ 3], hdr[ 2], hdr[ 1], hdr[ 0] );
-                      
-                           }
-                        }    // end DF=3
-                        else
-                        {                          
+                          if (rejectcount <maxmsg) printf( " Advancing pointers for rejected event passpileup=%d, passTTCL=%d \n",passpileup,passTTCL );
+
+                       }    // end DF=3
+                       else
+                       {     
+                          // read FPGA E
+                          mapped[AMZ_EXAFRD] = AK7_EFIFO;              // select the "EFIFO" address in channel's page
+                          energyF = mapped[AMZ_EXDWR];                 // read 16 bits
+                          mapped[AMZ_EXAFRD] = AK7_NEXTEVENT;          // select the "nextevent" address in channel's page
+                          tmp0 = mapped[AMZ_EXDWR];                    // any read ok, advances E fifo 
+
                           // advance header memory by 5 x4 words
                           for( k=0; k < 5; k++)
                           {  
                              mapped[AMZ_EXAFRD] = AK7_HDRMEM_D;     // write to  k7's addr for read -> reading from AK7_HDRMEM_D channel header fifo, low 16bit
                              hdr[k] = mapped[AMZ_EXDRD];      // read 16 bits, no double read required
                              // the next 8 words only need to be read if reading QDC data
-                           }
+                          }
    
-                           //  now also advance trace memory address if traces are enabled 
-                              if(TRACEENA[ch]==1)  { 
-                                 mapped[AMZ_EXAFRD] = AK7_SKIPTRACE;             // select the "skiptrace" address in channel's page
-                                 tmp0 = mapped[AMZ_EXDWR];     // any read ok
-                              }  // end if trace enabled 
+                          //  now also advance trace memory address if traces are enabled 
+                          if(TRACEENA[ch]==1)  { 
+                              mapped[AMZ_EXAFRD] = AK7_SKIPTRACE;             // select the "skiptrace" address in channel's page
+                              tmp0 = mapped[AMZ_EXDWR];     // any read ok
+                          }  // end if trace enabled 
+
+                          if (rejectcount <maxmsg) printf( " Advancing pointers for rejected event passpileup=%d, passTTCL=%d \n",passpileup,passTTCL );
                         
-                        } // end DF<3
+                       } // end DF<3
 
                     }  // end not acceptable    
                  }     // end event in this channel
@@ -1316,49 +1155,17 @@ int main(void) {
   // todo: there may be events left in the buffers. need to stop, then keep reading until nothing left
 
 
-  /* debug */
+  /* info and debug */
 
-  if(WR_RTCtrl==1) 
-  {
-     mapped[AMZ_DEVICESEL] = CS_K1;	   // specify which K7 
-     mapped[AMZ_EXAFWR] = AK7_PAGE;      // specify   K7's addr:    PAGE register
-     mapped[AMZ_EXDWR]  = PAGE_SYS;      //  PAGE 0: system, page 0x10n = channel n
-
-     // get current time
-     mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+0;   
-     tmp0 =  mapped[AMZ_EXDRD];
-     if(SLOWREAD)      tmp0 =  mapped[AMZ_EXDRD];
-     mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+1;   
-     tmp1 =  mapped[AMZ_EXDRD];
-     if(SLOWREAD)      tmp1 =  mapped[AMZ_EXDRD];
-     mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+2;   
-     tmp2 =  mapped[AMZ_EXDRD];
-     if(SLOWREAD)      tmp2 =  mapped[AMZ_EXDRD];
-     WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
-
-     printf( "Current WR time (K7) %llu s\n",WR_tm_tai );   
-  }
-
-  if(WR_RTCtrl==2)                       // RunEnable/Live set via WR time comparison in PicoZed (if startT < WR time < stopT => RunEnable=1) 
-  {
-     mapped[AMZ_DEVICESEL] = CS_MZ;	   // specify which K7 
-  
-     // get current WR time  
-     tmp0 =  mapped[AMZ_WR_READ_TAI+0];        // TODO: odd offset by 1 in address
-     tmp1 =  mapped[AMZ_WR_READ_TAI+1]; 
-     tmp2 =  mapped[AMZ_WR_READ_TAI+2];
-     WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
-     printf( "Current WR time %llu s (0x %x %x %x)\n",WR_tm_tai, tmp2, tmp1, tmp0 );
-
-  }
+  if(WR_RTCtrl>0) WRrunstop(mapped, WR_RTCtrl );    // print out White Rabbit related info at end of run
 
   if(fippiconfig.DATA_FLOW<4) 
   {
-     printf( "Run completed. Events transferred %d, rejected %d, total %d\n",eventcount,rejectcount, eventcount+rejectcount );
+     printf( "\nRun completed. Events transferred %d, rejected %d, total %d\n",eventcount,rejectcount, eventcount+rejectcount );
   } 
   else 
   {
-     printf( "Run completed. Events histogramed %d\n",MCA0counts+MCA1counts);
+     printf( "\nRun completed. Events histogramed %d\n",MCA0counts+MCA1counts);
      for(k7=0;k7<N_K7_FPGAS;k7++)
      { 
         mapped[AMZ_DEVICESEL] =  cs[k7];	         // select FPGA 
@@ -1373,68 +1180,18 @@ int main(void) {
         tmp1 =  mapped[AMZ_EXDRD]; 
         if(SLOWREAD)  tmp1 = mapped[AMZ_EXDRD]; 
 
-        WR_tm_tai = tmp0 +  65536*tmp1;
-        printf( "UDP events transmitted (port %d) %llu\n",k7, WR_tm_tai);
+        tmp_ll = tmp0 +  65536*tmp1;
+        printf( "UDP events transmitted (port %d) %llu\n",k7, tmp_ll);
      }
   }
 
-
   // analyze MCAs for single peak FWHM. MCA base assumed to be 0 outside peak, peak min 50 high
-  if(verbose)
-  {
-     printf( "Checking resolution of highest peak in MCA (>50) \n");
-     for(ch=0;ch<NCHANNELS_PRESENT;ch++)
-     {        
-         // find max, maxpos of rightmost peak
-         tmp0=0; tmp1=0;
-         for( k=(MAX_MCA_BINS-1); k >1; k--)
-         {
-             // look for a local max
-             if(mca[ch][k] > tmp0) 
-             {
-               tmp0 = mca[ch][k]; 
-               tmp1 = k;
-             }
-   
-             // end if back down to base
-             if( (mca[ch][k] < tmp0/10) && (tmp0>=50) ) 
-             {
-               k=1;
-             }
-         }   // end find max
-   
-         if(tmp1>0)
-         {
-            // go down from max to half on right side
-            k = tmp1;
-            do 
-            {
-               k=k+1;
-            } while( (k<MAX_MCA_BINS) && (mca[ch][k] > tmp0/2) );
-            tmp2 = k;
-      
-            // go down from max to half on right side
-            k = tmp1;
-            do 
-            {
-               k=k-1;   
-            } while( (k>1) && mca[ch][k] > tmp0/2);
-            out0 = tmp2 - k;
-      
-            printf( "ch.%d peak: max %d at %d, FWHM = %d (%4.2f percent)\n",ch,tmp0,tmp1,out0,(double)out0/(double)tmp1*100.0 );
-         }
-         else
-         {
-             printf( "ch.%d: no peak found \n",ch);
-         }
-   
-     } // end for channels
+  if(verbose)  MCAquickfit(NCHANNELS_PRESENT, &mca[0][0]);
+       
 
-  }  // end if verbose
-
-   
-  /* end debug */
-                    
+  /* end info and debug */
+  
+                  
   // final save MCA and RS
   filmca = fopen("MCA.csv","w");
   fprintf(filmca,"bin");

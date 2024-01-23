@@ -3,6 +3,7 @@
 *.backup
 
 # Data files
+*.bin
 *.csv
 *.log
 *.b00

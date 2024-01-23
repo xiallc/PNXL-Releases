@@ -257,6 +257,7 @@ Function Pixie_File_ReadEvent()
 			Pixie_Make_LMheadernames116()							// repopulate header names
 		//	runtype=0x116
 			FHL = 0
+			//CHL = 36//2* ( (LMfileheader[0] & 0xF000)/2^12 + (LMfileheader[1] & 0x0001)*16 ) 
 			CHL = 2* ( (LMfileheader[0] & 0xF000)/2^12 + (LMfileheader[1] & 0x0001)*16 ) 
 			TL 	= LMfileheader[7] & 0x7FFF		// assuming here, all events are the same length! 
 			ModuleType = 0
@@ -560,7 +561,7 @@ End
 Function Pixie_IO_ReadADCMCA(ctrlName) : ButtonControl
 	String ctrlName		// ADC or MCA
 
-	Svar MZip = root:pixie4:MZip
+	//Svar MZip = root:pixie4:MZip
 	Wave/t MZ_ip   = root:pixie4:MZ_ip
 	Wave/t MZ_user = root:pixie4:MZ_user 
 	Wave/t MZ_pw   = root:pixie4:MZ_pw 
@@ -581,7 +582,7 @@ Function Pixie_IO_ReadADCMCA(ctrlName) : ButtonControl
  			url = "http://"+MZ_user[ModNum]+":"+MZ_pw[ModNum]+MZ_ip[ModNum]+"@"+"/webops/"+ctrlname+".csv" // for debug
  			page =  fetchURL("http://"+MZ_user[ModNum]+":"+MZ_pw[ModNum]+"@"+MZ_ip[ModNum]+"/webops/"+ctrlname+".csv")
  		else
- 			page =  fetchURL("http://"+MZip+"/"+ctrlname+".csv")
+ 			page =  fetchURL("http://"+MZ_ip[ModNum]+"/"+ctrlname+".csv")
  		endif
 
 		error = GetRTError(1)		// Check for error before using response
@@ -719,7 +720,7 @@ End
 Function Pixie_IO_ReadRS(ctrlName) : ButtonControl
 	String ctrlName		
 
-	Svar MZip = root:pixie4:MZip
+	//Svar MZip = root:pixie4:MZip
 	Svar page = root:pixie4:page
 	Nvar localfile = root:pixie4:localfile
 	Nvar messages = root:pixie4:messages
@@ -742,7 +743,7 @@ Function Pixie_IO_ReadRS(ctrlName) : ButtonControl
  			page =  fetchURL("http://"+MZ_user[ModNum]+":"+MZ_pw[ModNum]+"@"+MZ_ip[ModNum]+"/webops/RS.csv")
  			//page =  fetchURL("http://"+MZip+"/webops/RS.csv")
  		else
- 			page =  fetchURL("http://"+MZip+"/RS.csv")
+ 			page =  fetchURL("http://"+MZ_ip[ModNum]+"/RS.csv")
 		endif
 
 		error = GetRTError(1)		// Check for error before using response
@@ -799,11 +800,15 @@ End
 Function Pixie_IO_ReadLM(ctrlName) : ButtonControl
 	String ctrlName		// txt or dat
 
-	Svar MZip = root:pixie4:MZip
+	//Svar MZip = root:pixie4:MZip
 	Svar page = root:pixie4:page
 	Nvar localfile = root:pixie4:localfile
 	Nvar messages = root:pixie4:messages
 	Nvar ModuleTypeXL = root:pixie4:ModuleTypeXL
+	Wave/t MZ_ip   = root:pixie4:MZ_ip
+	Wave/t MZ_user = root:pixie4:MZ_user 
+	Wave/t MZ_pw   = root:pixie4:MZ_pw 
+	Nvar ModNum = root:pixie4:ModNum
 	
 	String fullFilePath, localfilename
 	String ext, basename
@@ -827,7 +832,7 @@ Function Pixie_IO_ReadLM(ctrlName) : ButtonControl
 		endif
 	endif
 
- 	page =  fetchURL("http://"+MZip+"/"+basename+"."+ext)
+ 	page =  fetchURL("http://"+MZ_ip[ModNum]+"/"+basename+"."+ext)
 
 	error = GetRTError(1)		// Check for error before using response
 	if (error != 0)
@@ -961,7 +966,7 @@ String CtrlName
 	endif
 	
 	print/D "Loaded", numevents," number of events (rounded up), length ",evsize
-	printf "Runtype 0x%03x", runtype
+	printf "Runtype 0x%03x\n", runtype
 	
 	DoWindow/F EventArrayTable
 	if(V_flag!=1)
@@ -1384,6 +1389,10 @@ Function Pixie_File_ReadAsList4xx()
 	Nvar iCFDsum2   = root:pixie4:iCFDsum2  
 	Nvar evsize    =  root:pixie4:evsize
 	Nvar runtype = root:pixie4:runtype
+	NVAR CFD_Mode_online = root:LM:CFD_Mode_online	// select from online, Igor from traces, Igor from 4 raw, etc 
+	NVAR CFD_Mode_4raw   = root:LM:CFD_Mode_4raw
+	NVAR CFD_Mode_Igorwf = root:LM:CFD_Mode_Igorwf
+
 
 
 	// find number of events
@@ -1434,6 +1443,31 @@ Function Pixie_File_ReadAsList4xx()
 	lastC1 = nan
 	lastC2 = nan
 	lastC3 = nan
+	
+	// determine CFD mode
+	if(runtype==0x400)	// TODO: Pixie-Net XL's 0x400 CFD result is in P16 0x100 format!		
+		CFD_Mode_online = 1
+		CFD_Mode_4raw   = 0
+		CFD_Mode_Igorwf = 0
+	endif
+	if(runtype==0x404)	// 0x404 has no CFD entry
+		CFD_Mode_online = 0
+		CFD_Mode_4raw   = 0
+		CFD_Mode_Igorwf = 0
+	endif
+	if(runtype==0x410)
+		CFD_Mode_online = 0
+		CFD_Mode_4raw   = 1		// only choice
+		CFD_Mode_Igorwf = 0
+	endif
+	if(runtype==0x411)
+		CFD_Mode_online = 0
+		CFD_Mode_4raw   = 1		// only choice
+		CFD_Mode_Igorwf = 0
+	endif
+	
+	
+	
 		
 	for(no=0;no<Nevents;no+=1)
 	//	if (mod(no,10000)==0)
@@ -1441,9 +1475,18 @@ Function Pixie_File_ReadAsList4xx()
 	//		DoUpdate
 	//	endif
 
+		// ------------- hit pattern ------------------
 		hit[no] = wfarray[iHitL][no]+65536*wfarray[iHitM][no]
+		
+		// ------------- time stamp ------------------
 		TrigTimeL[no] =  wfarray[iTimeL][no]+65536*wfarray[iTimeM][no] 
-		TrigTimeH[no] =  wfarray[iTimeH][no]+65536*wfarray[iTimeX][no]		
+		if(runtype==0x411)
+			TrigTimeH[no] =  wfarray[iTimeH][no]
+		else
+			TrigTimeH[no] =  wfarray[iTimeH][no]+65536*wfarray[iTimeX][no]		
+		endif
+		
+		// ------------- channel and energy ------------------
 		
 		if(runtype==0x402)
 			chnum[no] = 0
@@ -1461,6 +1504,9 @@ Function Pixie_File_ReadAsList4xx()
 			chnum[no] = wfarray[iChannel][no]
 			energy[no] = wfarray[iEnergy][no]	
 			
+			
+			// ------------- CFD ------------------
+			
 			if(runtype==0x400)	
 				// TODO: Pixie-Net XL's 0x400 CFD result is in P16 0x100 format!		
 				currentCFD = -1* wfarray[iCFDresult][no]/256	//in ns
@@ -1475,7 +1521,9 @@ Function Pixie_File_ReadAsList4xx()
 				currentCFD = Pixie_Math_CFDfrom4raw(no)
 			endif
 			
-			if((0x3 & chnum[no])==0)		// map to 0-3 for table
+			// ------------- map to 0-3 for table ------------------
+			
+			if((0x3 & chnum[no])==0)		
 				lastE0 = energy[no]
 				lastT0 = TrigTimeL[no]
 				lastC0 = currentCFD
@@ -1525,13 +1573,28 @@ Function Pixie_File_ReadAsList4xx()
 	
 	print Nevents, "total"
 	
+	Svar CFDsource  =  root:LM:CFDsource
+	Nvar RTlow = root:LM:RTlow
+	//CFDsource = "FPGA (4w raw)"
+	//CFDsource = "DSP/ARM (1w fraction)"
+	CFDsource = "none"
+	if(CFD_Mode_online)
+		CFDsource = "DSP/ARM (1w fraction)"
+	endif
+	if(CFD_Mode_4raw)
+		CFDsource = "FPGA (4w raw)"
+	endif
+	if(CFD_Mode_Igorwf)
+		CFDsource = "Igor, cfd = "+num2str(RTlow)
+	endif
+	
 
 End
 
 //########################################################################
 //
 //	Pixie_File_ReadAsList11x: 
-//      Read binary files 0x110, 0x111 and sort result into a table
+//      Read binary files 0x100, 0x105, 0x110, 0x111 and sort result into a table
 //
 //########################################################################
 Function Pixie_File_ReadAsList11x()
@@ -1564,6 +1627,11 @@ Function Pixie_File_ReadAsList11x()
 	Nvar evsize    =  root:pixie4:evsize
 	Nvar runtype   = root:pixie4:runtype
 	Nvar WFscale = root:pixie4:WFscale
+	
+	NVAR CFD_Mode_online = root:LM:CFD_Mode_online	// select from online, Igor from traces, Igor from 4 raw, etc 
+	NVAR CFD_Mode_4raw   = root:LM:CFD_Mode_4raw
+	NVAR CFD_Mode_Igorwf = root:LM:CFD_Mode_Igorwf
+
 
 
 	// find number of events
@@ -1613,6 +1681,23 @@ Function Pixie_File_ReadAsList11x()
 	lastC1 = nan
 	lastC2 = nan
 	lastC3 = nan
+	Variable cfdsrc, cfdfrc, ph
+	
+	// determine CFD mode
+	if(runtype==0x110)
+			CFD_Mode_online = 0
+			CFD_Mode_4raw   = 0		// no choice
+			CFD_Mode_Igorwf = 0
+	endif
+	if(runtype==0x111)
+			CFD_Mode_online = 0
+			CFD_Mode_4raw   = 1		// only choice
+			CFD_Mode_Igorwf = 0
+	endif
+	if(runtype==0x116)
+		// no adjustment. can not determine 0x100 or 0x105, could be raw or online 
+	endif
+	
 		
 	for(no=0;no<Nevents;no+=1)
 	//	if (mod(no,10000)==0)
@@ -1620,41 +1705,86 @@ Function Pixie_File_ReadAsList11x()
 	//		DoUpdate
 	//	endif
 
+		// ------------- hit pattern ------------------
+
 		hit[no] = wfarray[iHitL][no]+65536*wfarray[iHitM][no]
+		
+		// -------------- time stamp ------------------
 		TrigTimeL[no] =  wfarray[iTimeL][no]+65536*wfarray[iTimeM][no] 
 		TrigTimeH[no] =  wfarray[iTimeH][no]//+65536*wfarray[iTimeX][no]		
 		
-		
+		// -------------- channel ------------------
 		if(runtype==0x116)
 			chnum[no] = wfarray[0][no] & 0x03
 		else
 			chnum[no] = wfarray[3][no] & 0x03		// map into 3 traditional channels
 		endif
 		
+		// -------------- energy ------------------
 		energy[no] = wfarray[iEnergy][no]
 		
+		// -------------- CFD ------------------
 		if(runtype==0x111)
 			currentCFD = Pixie_Math_CFDfrom4raw(no)		// technically the 0x111 format has a final CFD field, but it is unlikely to be valid. use raw data and compute 
-		elseif(runtype==0x116)
+
+		
+		elseif(runtype==0x116)	// 100, 105 (no run type indicator field in file
 			
 			
 			//if(0)
 			if(wfarray[iCFDresult][no]>0)	// CFD result computed, likely P16 0x100 with CFD enabled in DF=2
-				if(WFscale==4)	// TODO: this timescale does not seem quite right
-					currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) / 16384 * 4 // in ns
-				elseif(WFscale==8)
-					currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) / 32768 * 8 // in ns
-				elseif(WFscale==2)
-					currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) /  8192 * 2 // in ns	
-				else
-					currentCFD = 0 	//invalid WFscale
+				if(CFD_Mode_online)		// user wants DSP/ARM result
+					
+					if(WFscale==4)	// TODO: this timescale does not seem quite right
+						
+						// if the "src" bit adds 1, can just use result as is (bit 14 just adds 1)
+						// currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) / 16384 * 4 // in ns
+						// todo: zero for forced bit = 1
+						
+						//if the src bit add -1, have to disentangle
+						cfdsrc = (wfarray[iCFDresult][no] & 0x4000) > 0 	// check bit 14
+						cfdfrc = (wfarray[iCFDresult][no] & 0x8000) > 0 	// check bit 15
+						ph = (wfarray[iCFDresult][no] & 0x3FFF) / 16384
+						if(cfdsrc)
+							ph = ph-1
+						endif
+						
+						if(cfdfrc)
+							ph=0
+						endif
+						
+						currentCFD = ph *4 // in ns
+						
+						
+					elseif(WFscale==8)
+						currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) / 32768 * 8 // in ns
+						if((wfarray[iCFDresult][no] & 0x8000) > 0)
+							currentCFD = 0		// force bit: result invalid
+						endif
+					
+					elseif(WFscale==2)
+						currentCFD = (wfarray[iCFDresult][no] & 0x7FFF) /  8192 * 2 // in ns	
+						// todo: add the src and force bits
+					
+					else
+						currentCFD = 0 	//invalid WFscale
+					
+					endif
+				
+				else // user wants result from FPGA raw words
+					currentCFD = Pixie_Math_CFDfrom4raw(no)		//  invalid if not 0x105
 				endif
+
 			else	// CFD result NOT computed, likely P16 0x105 with CFD enabled in DF=4
 				currentCFD = Pixie_Math_CFDfrom4raw(no)
 			endif
-		else
+			
+		else	// other run types
 			currentCFD = 0 	//iCFDresult	not valid, no raw data. includes 0x110
+
 		endif
+		
+		// ------------------ sort into channel columns ---------------
 		
 		if(chnum[no]==0)
 			lastE0 = energy[no]
@@ -1704,6 +1834,21 @@ Function Pixie_File_ReadAsList11x()
 	killwaves/Z root:wfarray, root:LMheader
 	
 	print Nevents, "total"
+	
+	Svar CFDsource  =  root:LM:CFDsource
+	Nvar RTlow = root:LM:RTlow
+	//CFDsource = "FPGA (4w raw)"
+	//CFDsource = "DSP/ARM (1w fraction)"
+	CFDsource = "none"
+	if(CFD_Mode_online)
+		CFDsource = "DSP/ARM (1w fraction)"
+	endif
+	if(CFD_Mode_4raw)
+		CFDsource = "FPGA (4w raw)"
+	endif
+	if(CFD_Mode_Igorwf)
+		CFDsource = "Igor, cfd = "+num2str(RTlow)
+	endif
 
 End
 
@@ -1741,11 +1886,13 @@ Variable newfile
 	Nvar MaxEvents   = root:LM:MaxEvents 
 	Nvar Nevents     = root:LM:Nevents 			// number of events
 	Nvar ChosenEvent = root:pixie4:ChosenEvent		// number of event to read
+	Nvar WFscale = root:pixie4:WFscale
+
 	oldNevents = MaxEvents	
 	Nevents = MaxEvents	
 	
 	// options
-//	Nvar  TSscale = root:LM:TSscale
+	//	Nvar  TSscale = root:LM:TSscale
 
 	// local variables
 	Variable no, ret, ch
@@ -1754,10 +1901,16 @@ Variable newfile
 	Wave ListModeChannelEnergy=root:pixie4:ListModeChannelEnergy
 	Wave ListModeChannelTrigger=root:pixie4:ListModeChannelTrigger
 	Wave ListModeChannelUser = root:pixie4:ListModeChannelUser
+	Wave ListModeChannelXIA = root:pixie4:ListModeChannelXIA
 	Nvar EventTimeHI = root:Pixie4:EventTimeHI
 	Nvar EventTimeLO = root:Pixie4:EventTimeLO
 	Nvar EventHitpattern = root:Pixie4:EventHitpattern
 	Nvar ChosenChannel = root:pixie4:ChosenChannel	// Pixie_File_ReadEvent sets that channel number
+	
+	NVAR CFD_Mode_online = root:LM:CFD_Mode_online	// select from online, Igor from traces, Igor from 4 raw, etc 
+	NVAR CFD_Mode_4raw   = root:LM:CFD_Mode_4raw
+	NVAR CFD_Mode_Igorwf = root:LM:CFD_Mode_Igorwf
+
 
 	
 	// destination waves and globals
@@ -1812,14 +1965,47 @@ Variable newfile
 		if(ret>=0)
 		
 			// copy E, T, etc	
+			// ------------------ hit ---------------
 			hit[no] = EventHitpattern
+			
+			// ------------------ time stamp ---------------
 			TrigTimeL[no] = EventTimeLO 
-			TrigTimeH[no] = EventTimeHI						
+			TrigTimeH[no] = EventTimeHI	
+			
+			// ------------------ channel ---------------					
 			chnum[no] = ChosenChannel		// this is modulo 4 already
+			
+			// ------------------ energy ---------------
 			energy[no] = ListModeChannelEnergy[ch]
 		
+			// ------------------ CFD ---------------
 			// compute CFD time
-			CFDtime[no] = Pixie_Math_CFDfromTrace(ch) 		// in ns	
+			CFDtime[no] = 0		// default
+			if(CFD_Mode_online)
+				if(WFscale==4)	// TODO: this timescale does not seem quite right
+					CFDtime[no] = (ListModeChannelXIA[ch] & 0x7FFF) / 16384 * 4 // in ns
+				elseif(WFscale==8)
+					CFDtime[no] = (ListModeChannelXIA[ch] & 0x7FFF) / 32768 * 8 // in ns
+				elseif(WFscale==2)
+					CFDtime[no] = (ListModeChannelXIA[ch] & 0x7FFF) /  8192 * 2 // in ns	
+				else
+					CFDtime[no] = 0 	//invalid WFscale
+				endif
+				//CFDtime[no] = ListModeChannelXIA[ch]	
+			endif
+			if(CFD_Mode_4raw)
+				CFDtime[no] = Pixie_Math_CFDfrom4hdr()  		// in ns	
+			endif
+			if(CFD_Mode_Igorwf)
+				CFDtime[no] = Pixie_Math_CFDfromTrace(ch) 
+			endif
+			
+			//Wave Eventvalues = root:PW:Eventvalues
+			// todo: add option to radio buttons for Igor original minus scaled/delayed implementation
+			//CFDtime[no] = Eventvalues[37]	*4	// CFD fraction from PSA_readEvent, online algorithm
+				
+				
+			// ------------------ sort into channel columns ---------------
 				
 			// channel specific
 			if((0x3 & chnum[no])==0)		// map to 0-3 for table
@@ -1877,9 +2063,16 @@ Variable newfile
 	Nvar RTlow = root:LM:RTlow
 	//CFDsource = "FPGA (4w raw)"
 	//CFDsource = "DSP/ARM (1w fraction)"
-	//CFDsource = "none"
-	CFDsource = "Igor, cfd = "+num2str(RTlow)
-	
+	CFDsource = "none"
+	if(CFD_Mode_online)
+		CFDsource = "DSP/ARM (1w fraction)"
+	endif
+	if(CFD_Mode_4raw)
+		CFDsource = "FPGA (4w raw)"
+	endif
+	if(CFD_Mode_Igorwf)
+		CFDsource = "Igor, cfd = "+num2str(RTlow)
+	endif
 	
 End
 

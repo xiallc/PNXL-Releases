@@ -8,15 +8,21 @@ Menu "&XIA"
 	"&List Mode Traces/F10",Pixie_Plot_LMTraces()
 	"&Run Statistics XL/F12",Pixie_Table_RunStats()
 	"-"
+	"&List Mode File Analysis", Pixie_Panel_LM()
+//	"&About Pixie Viewer", Pixie_Panel_About("")
+	
+End
+
+Menu "&XIA_Extra"
+	"-"
 	"Pixie-Net Panel",Pixie_Panel_PN()
+	"&Pixie-Net XL Panel Extended",Pixie_Panel_PNXL_Extended()
 	"&Oscilloscope",Pixie_Plot_Oscilloscope()
 	"&MCA Spectrum",Pixie_Plot_MCA()
 //	"List Mode Spectrum/F11",PN_Plot_LMSpectrumDisplay()
 	"&Run Statistics",Pixie_Panel_RunStats()
 	"-"
-	"&List Mode File Analysis", Pixie_Panel_LM()
-//	"&About Pixie Viewer", Pixie_Panel_About("")
-	
+
 End
 
 
@@ -31,8 +37,133 @@ Window Pixie_Panel_PNXL() : Panel
 	DoWindow/F PNXLpanel
 	if(V_Flag != 1)
 		PauseUpdate; Silent 1		// building window...
-		NewPanel/K=1/W=(10,10,870,530) as "Pixie-Net XL"
+		NewPanel/K=1/W=(10,10,655,490) as "Pixie-Net XL"
 		DoWindow/C PNXLpanel
+		ModifyPanel cbRGB=(63736,61937,64507)
+		
+		////////////////////// Operation (serial) ///////////////////////////////////		
+		
+		Variable boxheight = 460
+		Variable buttonwidth_w=150
+		Variable buttonwidth_r=130
+	
+		Variable netx=5
+		Variable netx2=180
+	
+		
+		////////////////////// Operation (network) ///////////////////////////////////		
+		
+
+		Variable nety= 10
+		GroupBox netops title="Operation", pos={netx+5,nety},size={360,boxheight},frame=0,fsize=12,fcolor=(1,1,1),fstyle=1
+		TitleBox netopstxt1 title="via network", pos={netx+15,nety+17},size={65,90},frame=0, fsize=10,font="Arial"
+		Button ShowIPtable,     pos={netx+80,nety+20},size={60,15},title="IP Setup",proc=Pixie_Ctrl_CommonButton, help={"Open table to enter IP numbers, user ID, and passwords"}
+		SetVariable webvar1,    pos={netx+10,nety+45},size={160,16},title="Number of active units",variable= root:pixie4:Nmodules, help={"The number of Pixie-Net [XL] units to control"}
+		SetVariable webvar2,    pos={netx2+15,nety+45},size={160,16},title="Selected unit number ",variable= root:pixie4:ModNum, fstyle=1, help={"The current Pixie-Net [XL] unit to communicate with"}
+		
+		nety = 90		
+		Button webreadsettings, pos={netx+20,nety},size={buttonwidth_w-40,20},title="Read Settings",proc=Pixie_Ctrl_WebIO 
+		Button showsettings,	 pos={netx+20+buttonwidth_w-35,nety},size={35,20},title="Table",proc=Pixie_Ctrl_CommonButton
+		SetVariable rty,  pos={netx+30,nety+22},size={120,16},title="Run Type  0x",variable= root:pixie4:Run_Type, format="%X" ,help={"Enter hex number with prefix '0x'. See manual for run type definitions"} 
+		SetVariable rti,  pos={netx+30,nety+44},size={120,16},title="Run Time (s)",variable= root:pixie4:Run_Time 
+		SetVariable wrc,  pos={netx+30,nety+66},size={120,16},title="\K(1,4,52428)WR_RT_Ctrl  ",variable= root:pixie4:WR_RT_CTRL,help={"See manual for definitions"}    
+		SetVariable dtf,  pos={netx+30,nety+88},size={120,16},title="\K(1,4,52428)Data_Flow  ",variable= root:pixie4:Data_Flow,help={"See manual for definitions"}      
+		 
+		nety=215
+		Button webwritesettings,pos={netx+20,nety+00},size={buttonwidth_w,20},title="Write Settings *",proc=Pixie_Ctrl_WebIO, help={"Write Igor's setting to the Pixie-Net's settings file. Requires 'apply'."}
+		Button webprogfippi,    pos={netx+20,nety+25},size={buttonwidth_w,20},title="Apply (progfippi) *",proc=Pixie_Ctrl_WebIO, help={"Apply the parameters in the Pixie-Net settings file to the pulse processing FPGA"}
+		Button webadjust,       pos={netx+20,nety+50},size={buttonwidth_w,20},title="Adjust Offsets *",proc=Pixie_Ctrl_WebIO, help={"Automatically adjust DC offsets. This will change offsets, but not the settings file."}
+		Button webrefresh,      pos={netx+20,nety+75},size={buttonwidth_w,20},title="Refresh Traces",proc=Pixie_Ctrl_WebIO, help={"Read untriggered ADC samples from the Pixie-Net."}
+		
+		nety+=115
+		Button webpollcsr0,     pos={netx+20,nety+00},size={buttonwidth_w,20},title="\K(1,4,52428)Poll CSR (Ctrl)",proc=Pixie_Ctrl_WebIO, help={"Read CSR value of Zynq controller"}
+		SetVariable zycsr,  	 pos={netx+30,nety+22},size={120,16},title="\K(1,4,52428)CSR 0x",variable= root:pixie4:Zynq_CSR, format="%04X", noedit=1, limits={0,0xFFFF,0 } 	
+		Button webpollcsr5,     pos={netx+20,nety+47},size={buttonwidth_w,20},title="\K(1,4,52428)Poll WR Time (K1)",proc=Pixie_Ctrl_WebIO, help={"Read White Rabbit time from 2nd pulse processing FPGA"} 
+		SetVariable tmtai,  	 pos={netx+20,nety+69},size={150,16},title="\K(1,4,52428)TM_TAI ",variable= root:pixie4:WR_TM_TAI, noedit=1, limits={0,inf,0 }, format="%015u"
+		
+		nety+=110
+		Button haltssh,			 pos={netx+20,nety+00},size={buttonwidth_w,20},title="Shutdown Linux",proc=Pixie_Ctrl_WebIO, help={"Open Windows cmd shell with ssh connection to shut down Pixie-Net"}
+
+
+		// column 2		
+		nety=106
+		TitleBox daq01 title="DAQ for specified time", pos={netx2+20,nety-17},size={65,90},frame=0, fsize=10,font="Arial"
+		Button webstartdaq,     pos={netx2+20,nety+ 00},size={buttonwidth_w,20},title="Start DAQ *",proc=Pixie_Ctrl_WebIO, help={"Start generic data acquisition in Pixie-Net [XL]. Igor will NOT pause until run complete"} 
+		Button webacquire,      pos={netx2+20,nety+ 25},size={buttonwidth_w,20},title="\K(0,40000,0)Acquire *",proc=Pixie_Ctrl_WebIO, help={"Start 'acquire' data acquisition in Pixie-Net. Igor will NOT pause until run complete"} 
+		Button webcoincdaq,     pos={netx2+20,nety+ 50},size={buttonwidth_w,20},title="\K(0,40000,0)Coinc DAQ ",proc=Pixie_Ctrl_WebIO, help={"Start 'coincdaq' data acquisition in Pixie-Net. Igor will NOT pause until run complete"} 
+		Button webmcadaq,       pos={netx2+20,nety+ 75},size={buttonwidth_w,20},title="\K(1,4,52428)MCA only DAQ *",proc=Pixie_Ctrl_WebIO, disable=0, help={"Start MCA only data acquisition in Pixie-Net XL. Requires Runtype 0x301, Data_Flow 5"}
+
+		nety+=115
+		TitleBox daq02 title="DAQ until stopped", pos={netx2+20,nety+6},size={65,90},frame=0, fsize=10,font="Arial"
+		Button webenadaq,       pos={netx2+20,nety+ 20},size={buttonwidth_w,20},title="\K(1,4,52428)Enable LM only DAQ *",proc=Pixie_Ctrl_WebIO, disable=0, help={"Start data acquisition in Pixie-Net XL. List mode data streamed as UDP packages until DAQ stopped"}
+		Button webdisdaq,       pos={netx2+20,nety+ 45},size={buttonwidth_w,20},title="\K(1,4,52428)Disable LM only DAQ *",proc=Pixie_Ctrl_WebIO, disable=2, help={"Stop UDP streaming data acquisition in Pixie-Net XL."}
+		Button webenaudp,       pos={netx2+20,nety+ 80},size={buttonwidth_w,20},title="\K(1,4,52428)Enable local UDP receiver",proc=Pixie_Ctrl_WebIO, disable=0, help={"Start a UDP receiver program on local PC, which will save LM data to local file. Requires udp_xop##.xop"}
+		Button webdisudp,       pos={netx2+20,nety+105},size={buttonwidth_w,20},title="\K(1,4,52428)Disable local UDP receiver",proc=Pixie_Ctrl_WebIO, disable=2, help={"Stop UDP receiver on local PC"}
+		Button webpolludp,      pos={netx2+20,nety+130},size={buttonwidth_w,20},title="\K(1,4,52428)Poll local UDP receiver",proc=Pixie_Ctrl_WebIO, disable=0, help={"Poll UDP receiver on local PC"}
+
+		
+		nety+=170
+		TitleBox daq03 title="1-click DAQ (timed)", pos={netx2+20,nety+6},size={65,90},frame=0, fsize=10,font="Arial"
+		Button webdaq1clk,       pos={netx2+20,nety+ 20},size={buttonwidth_w,20},title="\K(1,4,52428)UDP-DAQ-poll-stop *",proc=Pixie_Ctrl_DAQ1clk, disable=0, help={"Start UDP, then data acquisition in Pixie-Net XL. UDP stopped after specified Run Time"}
+
+		
+		////////////////////// Results ///////////////////////////////////
+				
+		netx=390
+		nety= 35
+		GroupBox net title="Results", pos={netx-5,nety-25},size={250,boxheight-190},frame=0,fsize=12,fcolor=(1,1,1),fstyle=1
+		TitleBox nettxt1 title="via network", pos={netx+5,nety-8},size={65,90},frame=0, fsize=10,font="Arial"
+		//SetVariable setvar0,pos={netx,nety+20},size={140,16},title="IP address",variable= root:pixie4:MZip, help={"IP address for reading files from Pixie-Net. For 'webops', values from IP table are used instead"}
+		Checkbox box0, title="Use local files", pos={netx+10,nety+20}, variable =root:pixie4:localfile, help={"Instead of reading from Pixie-Net, use file open dialog to select files"}
+		
+		nety=87
+		netx+=10
+		TitleBox restxt1 title="Read csv file into Igor", pos={netx-5,nety},size={65,90},frame=0, fsize=10,font="Arial"
+		Button ADC,pos={netx,nety+15},size={buttonwidth_r,20},title="Read ADC Data",proc=Pixie_IO_ReadADCMCA, help={"Read ADC.csv and display in Oscilloscop plot"}
+		Button MCA,pos={netx,nety+40},size={buttonwidth_r,20},title="Read MCA Data",proc=Pixie_IO_ReadADCMCA, help={"Read MCA.csv and display in MCA plot"}
+		Button ReadRS,pos={netx,nety+65},size={buttonwidth_r,20},title="Read Statistics", proc=Pixie_IO_ReadRS, help={"Read RS.csv and display in run statistics table"}
+		
+		nety+=110
+		TitleBox restxt2 title="Read LM file into Igor", pos={netx-5,nety},size={65,90},frame=0, fsize=10,font="Arial"
+		Button ReadRrawLM,   pos={netx,nety+15},size={buttonwidth_r,20},title="Read Raw LM data" , proc=Pixie_File_ReadRawLMdata, help={"Import binary LM data and display in a table"}
+		nety+=50
+	//	Button ReadSortLM4xx,pos={netx,nety+00},size={buttonwidth_r,20},title="Read & Sort 0x4##", proc=Pixie_Ctrl_CommonButton, help={"Import binary LM data and sort results in a table"}
+	//	Button ReadSortLM11x,pos={netx,nety+25},size={buttonwidth_r,20},title="Read & Sort 0x11#", proc=Pixie_Ctrl_CommonButton, help={"Import binary LM data and sort results in a table"}
+	//	SetVariable setMaxE4,pos={netx,nety+50},size={buttonwidth_r,16},title="Max # events ",variable= root:LM:MaxEvents	,font="arial",fsize=11
+
+		nety=425
+		Button LMcleanup,pos={netx,nety+15},size={buttonwidth_r,20},title="Clean up LM waves", proc=Pixie_Ctrl_CommonButton, help={"Delete or resize arrays for imported LM data"}
+
+		////////////////////// Options ///////////////////////////////////		
+			
+				
+		Variable optx=390
+		Variable opty= 310
+		GroupBox evt title="Options", pos={optx-5,opty-25},size={250,boxheight-opty+35},frame=0,fsize=12,fcolor=(1,1,1),fstyle=1
+		Checkbox box1, title="Print Messages", pos={optx,opty}, variable =root:pixie4:messages, help={"Print status and debug messages to the history window"}
+		Checkbox box2, title="\K(1,4,52428)Pixie-Net XL   \K(0,40000,0)(not Pixie-Net)", pos={optx,opty+20}, variable =root:pixie4:ModuleTypeXL, help={"Check this box to operate a Pixie-Net XL"}
+		Checkbox box6, title="webops operation", pos={optx,opty+40}, variable =root:pixie4:webops, help={"Check this box to use the network operation (web api) instead of the serial I/O. Uses settings and results in the webops folder"}
+		Checkbox box10, title="Apply to all units (*)", pos={optx,opty+60}, variable =root:pixie4:apply_all, help={"Actions from buttons labeled with * are applied to all units"}
+		Checkbox box11, title="\K(1,4,52428)Delay runstart for WR timing", pos={optx,opty+80}, variable =root:pixie4:WRdelay, help={"Synchronize the run start from multiple units to a White Rabbit time 10s in the future"}
+		Checkbox box12, title="Show Igor Alert for critical warnings", pos={optx,opty+100}, variable =root:pixie4:warnings, help={"Show key warnings in a popup window rather than printing in history "}
+
+		
+
+	endif
+EndMacro
+
+//########################################################################
+//
+//  Pixie_Panel_PNXL_Extended:                                                                           
+//     Copy of Main control panel with low level I/O buttons (serial also) for Pixie-Net and Pixie-Net XL       
+//
+//########################################################################
+Window Pixie_Panel_PNXL_Extended() : Panel
+	DoWindow/F PNXLpanel_Extended
+	if(V_Flag != 1)
+		PauseUpdate; Silent 1		// building window...
+		NewPanel/K=1/W=(10,10,870,530) as "Pixie-Net XL (Extended)"
+		DoWindow/C PNXLpanel_Extended
 		ModifyPanel cbRGB=(63736,61937,64507)
 		
 		////////////////////// Operation (serial) ///////////////////////////////////		
@@ -89,7 +220,6 @@ Window Pixie_Panel_PNXL() : Panel
 		SetVariable tmtai,  	 pos={netx+20,nety+69},size={150,16},title="\K(1,4,52428)TM_TAI ",variable= root:pixie4:WR_TM_TAI, noedit=1, limits={0,inf,0 }, format="%015u"
 		
 		nety+=110
-		//Button webmcaupdate,    pos={netx+20,nety+350},size={buttonwidth_w,20},title="Update MCA",proc=Pixie_Ctrl_WebIO, disable=2, help={"Read the current MCA data file"}
 		Button haltssh,			 pos={netx+20,nety+00},size={buttonwidth_w,20},title="Shutdown Linux",proc=Pixie_Ctrl_WebIO, help={"Open Windows cmd shell with ssh connection to shut down Pixie-Net"}
 
 
@@ -150,9 +280,6 @@ Window Pixie_Panel_PNXL() : Panel
 		GroupBox evt title="Options", pos={optx-5,opty-25},size={295,boxheight-opty+35},frame=0,fsize=12,fcolor=(1,1,1),fstyle=1
 		Checkbox box1, title="Print Messages", pos={optx,opty}, variable =root:pixie4:messages, help={"Print status and debug messages to the history window"}
 		Checkbox box2, title="\K(1,4,52428)Pixie-Net XL   \K(0,40000,0)(not Pixie-Net)", pos={optx,opty+20}, variable =root:pixie4:ModuleTypeXL, help={"Check this box to operate a Pixie-Net XL"}
-		//Checkbox box3, title="\K(1,4,52428)Map ch.   4 -  7 to 0-3", pos={optx+10,opty+40}, variable =root:pixie4:ChannelMapQuad1
-		//Checkbox box4, title="\K(1,4,52428)Map ch.   8 -11 to 0-3", pos={optx+10,opty+60}, variable =root:pixie4:ChannelMapQuad2
-		//Checkbox box5, title="\K(1,4,52428)Map ch. 12 -15 to 0-3", pos={optx+10,opty+80}, variable =root:pixie4:ChannelMapQuad3
 		Checkbox box6, title="webops operation", pos={optx,opty+40}, variable =root:pixie4:webops, help={"Check this box to use the network operation (web api) instead of the serial I/O. Uses settings and results in the webops folder"}
 		Checkbox box10, title="Apply to all units (*)", pos={optx,opty+60}, variable =root:pixie4:apply_all, help={"Actions from buttons labeled with * are applied to all units"}
 		Checkbox box11, title="\K(1,4,52428)Delay runstart for WR timing", pos={optx,opty+80}, variable =root:pixie4:WRdelay, help={"Synchronize the run start from multiple units to a White Rabbit time 10s in the future"}
@@ -193,7 +320,7 @@ Function Pixie_Panel_LM() : Panel
 	DoWindow/F LMAnalysis
 	if (V_flag!=1)
 		//Tdiff_globals()
-		NewPanel /K=1/W=(50,50,335,550) as "LM File Analysis"
+		NewPanel /K=1/W=(50,50,335,600) as "LM File Analysis"
 		//ModifyPanel cbRGB=(65280,59904,48896)
 		DoWindow/C LMAnalysis	
 		
@@ -206,15 +333,15 @@ Function Pixie_Panel_LM() : Panel
 		SetVariable TraceDataFile, value=root:pixie4:lmfilename, pos={ctrlx, filey+4},size={240,18},title="File"
 		SetVariable TraceDataFile,fsize=11,font="arial"//,bodywidth=100
 		Button FindTraceDataFile, pos={ctrlx,filey+26},size={50,20},proc=Pixie_Ctrl_CommonButton,title="Select",fsize=11	,font="arial"	
-		SetVariable setvar2,pos={165,filey+26},size={105,16},title="Run Type  0x",variable= root:pixie4:RunType,format="%X",font="arial",fsize=11
-		SetVariable setvar3,pos={165,filey+46},size={105,16},title="Event Size    ",variable= root:pixie4:evsize	,font="arial",fsize=11
-		SetVariable setvar4,pos={ctrlx,filey+46},size={140,16},title="Max # events ",variable= root:LM:MaxEvents	,font="arial",fsize=11
-		filey+=70
+		SetVariable setvar4,pos={ctrlx+90,filey+26},size={140,16},title="Max # events ",variable= root:LM:MaxEvents	,font="arial",fsize=11
+		filey+=50
 		
 		SetVariable inp24,pos={ctrlx,filey},size={140,16},title="Time stamp unit (ns) ",value= root:LM:TSscale,font="arial",fsize=11
 		SetVariable inp24, help={"Time stamp units are 2ns for Pixie-4e (any), 13.333ns for Pixie-4, 1ns for Pixie-Net"}
 		SetVariable inp25,pos={ctrlx,filey+20},size={140,16},title="Sample interval (ns) ",value= root:pixie4:WFscale,font="arial",fsize=11
 		SetVariable inp25, help={"Waveform sampling intervals are 2ns for Pixie-4e (14/500), 8ns for Pixie-4e (16/125), 4ns for Pixie-Net, 13.333ns for Pixie-4"}
+		SetVariable setvar2,pos={165,filey},size={105,16},title="Run Type  0x",variable= root:pixie4:RunType,format="%X",font="arial",fsize=11
+		SetVariable setvar3,pos={165,filey+20},size={105,16},title="Event Size    ",variable= root:pixie4:evsize	,font="arial",fsize=11
 		filey+=45
 	
 
@@ -222,14 +349,14 @@ Function Pixie_Panel_LM() : Panel
 		DrawLine 10, filey, linelendx, filey
 		filey+=10
 		
-		Button ReadDSPresults500,pos={ctrlx, filey},size={buttonx,20},proc=Tdiff_Panel_Call_Buttons,title="Read Data from .txt file (0x500) [traces]"
-		Button ReadDSPresults500,help={"Read list data from file (text, with traces), extract values computed by DSP"},fsize=11	,font="arial", disable=2
-		Button ReadDSPresults501,pos={ctrlx, filey+22},size={buttonx/2,20},proc=Tdiff_Panel_Call_Buttons,title="... .dat file (0x501) [no traces]"
-		Button ReadDSPresults501,help={"Read list data from file (text, no traces), extract values computed by DSP"},fsize=11	,font="arial", disable=2
-		Button ReadDSPresults502,pos={ctrlx+buttonx/2, filey+22},size={buttonx/2,20},proc=Tdiff_Panel_Call_Buttons,title="... .dt2 file (0x502) [PSA]"	
-		Button ReadDSPresults502,help={"Read list data from file (text, PSA and CFD), extract values computed by DSP"},fsize=11	,font="arial", disable=2
-		Button ReadDSPresults503,pos={ctrlx, filey+44},size={buttonx,20},proc=Tdiff_Panel_Call_Buttons,title="Read Data from .dt3 file (0x503) [coinc]"
-		Button ReadDSPresults503,help={"Read list data from file (coinc group), extract values computed by DSP"},fsize=11	,font="arial", disable=2
+//		Button ReadDSPresults500,pos={ctrlx, filey},size={buttonx,20},proc=Tdiff_Panel_Call_Buttons,title="Read Data from .txt file (0x500) [traces]"
+//		Button ReadDSPresults500,help={"Read list data from file (text, with traces), extract values computed by DSP"},fsize=11	,font="arial", disable=2
+//		Button ReadDSPresults501,pos={ctrlx, filey+22},size={buttonx/2,20},proc=Tdiff_Panel_Call_Buttons,title="... .dat file (0x501) [no traces]"
+//		Button ReadDSPresults501,help={"Read list data from file (text, no traces), extract values computed by DSP"},fsize=11	,font="arial", disable=2
+//		Button ReadDSPresults502,pos={ctrlx+buttonx/2, filey+22},size={buttonx/2,20},proc=Tdiff_Panel_Call_Buttons,title="... .dt2 file (0x502) [PSA]"	
+//		Button ReadDSPresults502,help={"Read list data from file (text, PSA and CFD), extract values computed by DSP"},fsize=11	,font="arial", disable=2
+//		Button ReadDSPresults503,pos={ctrlx, filey+44},size={buttonx,20},proc=Tdiff_Panel_Call_Buttons,title="Read Data from .dt3 file (0x503) [coinc]"
+//		Button ReadDSPresults503,help={"Read list data from file (coinc group), extract values computed by DSP"},fsize=11	,font="arial", disable=2
 
 		//Button ReadSortLM4xx,pos={netx,nety+00},size={120,20},title="Read & Sort 0x4##", proc=Pixie_Ctrl_CommonButton, help={"Import binary LM data and sort results in a table"}
 		//Button ReadSortLM11x,pos={netx,nety+25},size={120,20},title="Read & Sort 0x11#", proc=Pixie_Ctrl_CommonButton, help={"Import binary LM data and sort results in a table"}
@@ -237,11 +364,13 @@ Function Pixie_Panel_LM() : Panel
 		
 		//Button ReadDSPresults400,pos={ctrlx, filey+66},size={buttonx,20},proc=Tdiff_Panel_Call_Buttons,title="Read Data from .b00 file (0x400, 0x402)"
 		//Button ReadDSPresults400,help={"Read list data from file (any binary), extract values computed by DSP"},fsize=11	,font="arial"
-		Button ReadSortLM11x,pos={ctrlx, filey+88},size={buttonx,20},proc=Pixie_Ctrl_CommonButton,title="Read Data from .bin file (0x100 P16)"
+		//filey+=88
+		
+		Button ReadSortLM11x,pos={ctrlx, filey},size={buttonx,20},proc=Pixie_Ctrl_CommonButton,title="Read Data from .bin file (0x100 P16)"
 		Button ReadSortLM11x,help={"Read list data from file (Pixie-Net / P16), extract values computed by DSP"},fsize=11	,font="arial"
-		Button ReadSortLM4xx,pos={ctrlx, filey+110},size={buttonx,20},proc=Pixie_Ctrl_CommonButton,title="Read Data from .bin file (0x4xx Pixie-Net XL)"
+		Button ReadSortLM4xx,pos={ctrlx, filey+22},size={buttonx,20},proc=Pixie_Ctrl_CommonButton,title="Read Data from .bin file (0x4xx Pixie-Net XL)"
 		Button ReadSortLM4xx,help={"Read list data from file (Pixie-Net / P16), extract values computed by DSP"},fsize=11	,font="arial"
-		filey+=139
+		filey+=51
 		
 		Button ReadSortLMigor,pos={ctrlx, filey},size={buttonx,20},proc=Pixie_Ctrl_CommonButton,title="Read Events from file, compute CFD (slow)"
 		Button ReadSortLMigor,help={"Process LM file and replace file CFD with value computed from LM waveforms. Must be single event records (0x116, 400, etc"}, fsize=11	,font="arial"		
@@ -250,10 +379,23 @@ Function Pixie_Panel_LM() : Panel
 	//	Checkbox Igor99, variable= root:LM:UsePTPforLOC, title = "LocTime = PTP/Ex time",pos={ctrlx+10,filey},font="arial",fsize=11
 	//	Checkbox Igor99,help={"Replace the local trigger time with the External time stamp (PTP/WR) [0x116 only]"}	
 	//	filey+=20	
+	
+		Checkbox cfdmode_online, variable= root:LM:CFD_Mode_online, title = " Online CFD ratio (0x100, 0x105, 0x400)",pos={ctrlx+15,filey},font="arial",fsize=11
+		Checkbox cfdmode_online, help = {"Use CFD result computed by DSP/ARM. Only for Runtype 0x100, 0x105, 0x400, DF=2. Will automatically adjust to runtype of file"},proc=Pixie_Ctrl_CommonCheckBox, mode=1
+		filey+=18
 		
+		Checkbox cfdmode_4raw, variable= root:LM:CFD_Mode_4raw, title = " Online CFD from FPGA (4 words)",pos={ctrlx+15,filey},font="arial",fsize=11
+		Checkbox cfdmode_4raw, help = {"Compute CFD from 4 raw FPGA values. Only for Runtype 0x105, 0x111, 0x410, 0x411. Will automatically adjust to runtype of file"},proc=Pixie_Ctrl_CommonCheckBox, mode=1
+		filey+=18
+		
+		Checkbox cfdmode_igorwf, variable= root:LM:CFD_Mode_Igorwf, title = " Offline CFD from waveforms",pos={ctrlx+15,filey},font="arial",fsize=11
+		Checkbox cfdmode_igorwf, help = {"Compute CFD from waveforms. All run types, but must use 'read Events...' button"},proc=Pixie_Ctrl_CommonCheckBox, mode=1
+		SetVariable Igor126,pos={ctrlx+180,filey-3},size={60,16},title="lvl",help={"CFD level for computation from traces"}
+		SetVariable Igor126,fSize=11,format="%g",value= root:LM:RTlow, limits={0,1,0.1},font="arial"	
+		filey+=22
+				
 		Button Table_LMList,pos={ctrlx, filey},size={buttonx/2,20},proc=Pixie_Ctrl_CommonButton,title="Open Data Table"
 		Button Table_LMList,help={"Open Table with imported raw data"}, fsize=11	,font="arial"
-		SetVariable oup01, pos={ctrlx+buttonx/2+8,filey+3},size={112,16},title="CFD from",value= root:lm:CFDsource,font="arial",fsize=9
 		filey+=30	
 
 
@@ -279,24 +421,35 @@ Function Pixie_Panel_LM() : Panel
 	//	Checkbox Igor121, help = {" Use event time instead of channel specific local time (0x402 only) "} 
 	//	Checkbox Igor124, variable= root:LM:DiffA_toPTP, title = "PTP",pos={ctrlx+185,filey+32},font="arial",fsize=11, disable=2
 	//	Checkbox Igor124, help = {" Use PTP time instead of channel specific local time (outdated, use PTP to loc option above) "} 
-		Checkbox Igor125, variable= root:LM:DiffA_CFD, title = "CFD",pos={ctrlx+15,filey+32},font="arial",fsize=11
+		filey+=32
+	
+		Checkbox Igor125, variable= root:LM:DiffA_CFD, title = " Include CFD in time difference",pos={ctrlx+15,filey},font="arial",fsize=11
 		Checkbox Igor125, help = {"Refine local time difference with CFD"}
-		SetVariable Igor126,pos={ctrlx+60,filey+30},size={60,16},title="lvl",help={"CFD level for computation from traces"}
-		SetVariable Igor126,fSize=11,format="%g",value= root:LM:RTlow, limits={0,1,0.1},font="arial"	
+		SetVariable oup01, pos={ctrlx+35,filey+18},size={160,16},title="CFD from",value= root:lm:CFDsource,font="arial",fsize=9
+		filey+=45
 		
-		SetVariable Igor110,pos={ctrlx+38,filey+50},size={80,16},title="No. bins ",help={"Number of bins for Tdiff A histogram"}
+		Checkbox Igor130, variable= root:LM:DiffA_cut, title = " Apply energy cut",pos={ctrlx+15,filey},font="arial",fsize=11
+		Checkbox Igor130, help = {"Compute time diff separately for events within a certain energy window"}
+		SetVariable Igor131, pos={ctrlx+035,filey+18},size={80,16},title="low ",value= root:lm:ElowP, font="arial",fsize=11
+		SetVariable Igor132, pos={ctrlx+035,filey+36},size={80,16},title="high",value= root:lm:EhighP,font="arial",fsize=11
+		SetVariable Igor133, pos={ctrlx+165,filey+18},size={80,16},title="low ",value= root:lm:ElowN, font="arial",fsize=11
+		SetVariable Igor134, pos={ctrlx+165,filey+36},size={80,16},title="high",value= root:lm:EhighN,font="arial",fsize=11
+		filey+=65
+
+		
+		SetVariable Igor110,pos={ctrlx+15,filey},size={80,16},title="No. bins ",help={"Number of bins for Tdiff A histogram"}
 		SetVariable Igor110,fSize=11,format="%g",value= root:LM:NbinsTA, limits={0,65536,0},font="arial"	
-		SetVariable Igor111,pos={ctrlx+123,filey+50},size={100,16},title="bin size (ns)",help={"bin size (ns) for Tdiff A histogram"}
+		SetVariable Igor111,pos={ctrlx+110,filey},size={100,16},title="bin size (ns)",help={"bin size (ns) for Tdiff A histogram"}
 		SetVariable Igor111,fSize=11,format="%g",value= root:LM:BinsizeTA, limits={0,2048,0},font="arial"
-		filey+=50
+		filey+=26
 		
-		Button Plot_Thisto,pos={ctrlx, filey+26},size={100,20},proc=Pixie_Ctrl_CommonButton,title="Display Histogram"
+		Button Plot_Thisto,pos={ctrlx, filey},size={100,20},proc=Pixie_Ctrl_CommonButton,title="Display Histogram"
 		Button Plot_Thisto,help={"Create graph with histograms of time differences"}, fsize=11,font="arial"
-		Button Rebin_Tdiff,pos={ctrlx+110, filey+26},size={60,20},proc=Pixie_Ctrl_CommonButton,title="Rebin"
+		Button Rebin_Tdiff,pos={ctrlx+110, filey},size={60,20},proc=Pixie_Ctrl_CommonButton,title="Rebin"
 		Button Rebin_Tdiff,help={"rebin the histograms with specified bin size/number"}, fsize=11,font="arial"
-		Button Fit_Tdiff,pos={ctrlx+180, filey+26},size={60,20},proc=Pixie_Ctrl_CommonButton,title="Fit"
+		Button Fit_Tdiff,pos={ctrlx+180, filey},size={60,20},proc=Pixie_Ctrl_CommonButton,title="Fit"
 		Button Fit_Tdiff,help={"Apply Gauss fit between cursors"}, fsize=11,font="arial"
-		filey+=55
+		filey+=30
 		
 //		sety+=40	
 //		SetVariable Igor102,pos={ctrlx,sety+10},size={120,16},title="Tdiff B: Channel ",help={"Channel number for time difference B"}
@@ -325,6 +478,14 @@ Function Pixie_Panel_LM() : Panel
 //		SetDrawEnv linefgc= (39168,0,31232)
 //		DrawLine 10, filey, linelendx, filey
 //		filey+=10	
+
+		Button Plot_Tdiff_dTvsEv,pos={ctrlx, filey},size={100,20},proc=Pixie_Ctrl_CommonButton,title="Tdiff vs events"
+		Button Plot_Tdiff_dTvsEv,help={"Create scatter plot of time differences vs event number"}, fsize=11,font="arial"
+		Button Plot_Tdiff_EvsE,pos={ctrlx +110, filey},size={60,20},proc=Pixie_Ctrl_CommonButton,title="E vs E"
+		Button Plot_Tdiff_EvsE,help={"Create scatter plot of energy ('minus') vs energy ('plus')"}, fsize=11,font="arial"
+		Button Plot_Tdiff_dTvsE,pos={ctrlx +180, filey},size={60,20},proc=Pixie_Ctrl_CommonButton,title="Tdiff vs E"
+		Button Plot_Tdiff_dTvsE,help={"Create scatter plots of time difference vs energy "}, fsize=11,font="arial"
+		filey+=30
 	
 	endif
 End
@@ -890,6 +1051,14 @@ Window Pixie_Plot_LMTraces() : Graph
 	
 EndMacro
 
+
+
+//########################################################################
+//
+//		Tdiff plots
+//
+//########################################################################
+
 Window Pixie_Plot_Thisto() : Graph
 	DoWindow/F Tdiffhisto
 	if (V_Flag!=1)
@@ -901,6 +1070,49 @@ Window Pixie_Plot_Thisto() : Graph
 		Label left "N counts"
 		Label bottom "Time Difference (ns)"
 		Legend/C/N=text0/J/F=0/A=MC "\\s(ThistoA) T diff A"
+		ShowInfo
+	endif
+EndMacro
+
+Window Pixie_Plot_Tdiff_dTvsEv() : Graph
+	DoWindow/F Tdiff_dTvsEv
+	if (V_Flag!=1)
+		Display/K=1/W=(35.25,41.75,429.75,250.25) root:LM:TdiffA
+		DoWindow/C Tdiff_dTvsEv
+		ModifyGraph mode=2
+		ModifyGraph lSize=1.5
+		Label left "T diff (ns)"
+		Label bottom "Event #"
+		ShowInfo
+	endif
+EndMacro
+
+Window Pixie_Plot_Tdiff_EvsE() : Graph
+	DoWindow/F Tdiff_EvsEv
+	if (V_Flag!=1)
+		Display/K=1/W=(35.25,41.75,429.75,250.25) $("root:LM:Energy"+num2str(root:LM:DiffA_N)) vs $("root:LM:Energy"+num2str(root:LM:DiffA_P))
+		DoWindow/C Tdiff_EvsEv
+		ModifyGraph mode=2
+		ModifyGraph lSize=1.5
+		Label left "Energy"+num2str(root:LM:DiffA_N)
+		Label bottom "Energy"+num2str(root:LM:DiffA_P)
+		ShowInfo
+	endif
+EndMacro
+
+Window Pixie_Plot_Tdiff_dTvsE() : Graph
+	DoWindow/F Tdiff_dTsEv
+	if (V_Flag!=1)
+		Display/K=1/W=(40,40,600,400) root:LM:TdiffA vs $("root:LM:Energy"+num2str(root:LM:DiffA_P))
+		AppendtoGraph/B=B1/L=L1	root:LM:TdiffA vs $("root:LM:Energy"+num2str(root:LM:DiffA_N))
+		DoWindow/C Tdiff_dTsEv
+		ModifyGraph mode=2
+		ModifyGraph lSize=1
+		ModifyGraph axisEnab(bottom)={0,0.45},axisEnab(B1)={0.55,1},freePos(B1)={0,kwFraction}
+		ModifyGraph freePos(L1)={0,B1}
+		Label left "T diff (ns)"
+		Label bottom "Energy"+num2str(root:LM:DiffA_P)
+		Label B1 "Energy"+num2str(root:LM:DiffA_N)
 		ShowInfo
 	endif
 EndMacro
@@ -1151,7 +1363,71 @@ EndMacro
 
 
 
+Window Oscilloscope_Gated() : Graph
+	PauseUpdate; Silent 1		// building window...
+	Display/K=1/W=(480.75,180.5,1137.75,527.75) :pixie4:ADCch0
+	AppendToGraph/L=L1 ttcl
+	AppendToGraph/L=L2 htrig
+	AppendToGraph/L=L3 ctrig
+	AppendToGraph/L=L4 veto
+	AppendToGraph/L=L5 ftrig
+	ModifyGraph mode(ttcl)=6,mode(htrig)=6,mode(ctrig)=6,mode(veto)=6,mode(ftrig)=6
+	ModifyGraph rgb(ttcl)=(1,39321,19939),rgb(ctrig)=(29524,1,58982),rgb(veto)=(3,52428,1)
+	ModifyGraph rgb(ftrig)=(16385,16388,65535)
+	ModifyGraph lblPosMode(L5)=3
+	ModifyGraph lblPos(left)=42
+	ModifyGraph lblLatPos(L5)=5
+	ModifyGraph lblRot(L1)=-90,lblRot(L2)=-90,lblRot(L3)=-90,lblRot(L4)=-90,lblRot(L5)=-90
+	ModifyGraph freePos(L1)={0,bottom}
+	ModifyGraph freePos(L2)={0,bottom}
+	ModifyGraph freePos(L3)={0,bottom}
+	ModifyGraph freePos(L4)={0,bottom}
+	ModifyGraph freePos(L5)={0,bottom}
+	ModifyGraph axisEnab(left)={0.5,1}
+	ModifyGraph axisEnab(L1)={0,0.08}
+	ModifyGraph axisEnab(L2)={0.1,0.18}
+	ModifyGraph axisEnab(L3)={0.2,0.28}
+	ModifyGraph axisEnab(L4)={0.3,0.38}
+	ModifyGraph axisEnab(L5)={0.4,0.48}
+	ModifyGraph manTick(L1)={0,1,0,1},manMinor(L1)={0,50}
+	ModifyGraph manTick(L2)={0,1,0,1},manMinor(L2)={0,50}
+	ModifyGraph manTick(L3)={0,1,0,1},manMinor(L3)={0,50}
+	ModifyGraph manTick(L4)={0,1,0,2},manMinor(L4)={0,50}
+	ModifyGraph manTick(L5)={0,1,0,1},manMinor(L5)={0,50}
+	Label left "Signal"
+	Label L1 " TTCL Approved"
+	Label L2 " Esum Latch"
+	Label L3 " Coinc. Latch"
+	Label L4 " Veto"
+	Label L5 " Fast Trigger"
+	SetAxis L1 0,1.2
+	SetAxis L2 0,1.2
+	SetAxis L3 0,1.2
+	SetAxis L4 0,1.2
+	SetAxis L5 0,1.2
 
+EndMacro
+
+Function ExtractUserGate()
+
+	wave adcch0 = root:pixie4:adcch0
+	//wave adcch0 = root:adc6
+	wave adcch0 = root:adc0
+	
+	duplicate/o adcch0, ftrig
+	duplicate/o adcch0, veto
+	duplicate/o adcch0, ctrig
+	duplicate/o adcch0, htrig
+	duplicate/o adcch0, ttcl
+	
+	ttcl  = (ttcl & 0x0001)
+	htrig = ((htrig & 0x0002))/2
+	ctrig = ((ctrig & 0x0004))/4
+	veto  = ((veto & 0x0008))/8
+	ftrig = ((ftrig & 0x0010))/16
+	
+
+End
 
 
 

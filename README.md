@@ -16,12 +16,12 @@ git clone https://github.com/xiallc/PNXL-Releases.git /var/www
 **Note:** Make sure that you have aligned your software release with the system's
 boot files. The system will become unstable if these are not matched.
 
-| SKU                 | Variant ID | FW     | SW   | Host    | Igor | ZT Boot | MZ Boot | SD Image |
-|---------------------|------------|--------|------|---------|------|---------|---------|----------|
-| Pixie-Net-8-14-500  | 7          | 0x3871 | 3.3B | 9072022 | 6.38 | 3.32    | 3.32    | 09072022 |
-| Pixie-Net-16-14-250 | 4          | 0x3B41 | 3.3B | 9072022 | 6.38 | 3.32    | 3.32    | 09072022 |
-| Pixie-Net-16-14-250 | 4T         | 0x3B41 | 3.3B | 9072022 | 6.38 | 3.32    | 3.32    | 09072022 |
-| Pixie-Net-8-14-125  | 1          | 0x3811 | 3.3B | 9072022 | 6.38 | 3.32    | 3.32    | 09072022 |
+| SKU                 | Variant ID | FW     | SW   | Host     | Igor | ZT Boot | MZ Boot | SD Image |
+|---------------------|------------|--------|------|----------|------|---------|---------|----------|
+| Pixie-Net-8-14-500  | 7          | 0x3E71 | 3.3E | 01232024 | 6.3E | 3.32    | 3.32    | 09112023 |
+| Pixie-Net-16-14-250 | 4          | 0x3E41 | 3.3E | 01232024 | 6.3E | 3.32    | 3.32    | 09112023 |
+| Pixie-Net-16-14-250 | 4T         | 0x3E41 | 3.3E | 01232024 | 6.3E | 3.32    | 3.32    | 09112023 |
+| Pixie-Net-8-14-125  | 1          | 0x3E11 | 3.3E | 01232024 | 6.3E | 3.32    | 3.32    | 09112023 |
 
 ## Versioning
 

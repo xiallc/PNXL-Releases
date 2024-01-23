@@ -66,6 +66,7 @@ int main( int argc, const char **argv) {
   FILE * fil;
   unsigned int j, revsn, tenG;
   unsigned int Rbin=0;
+  unsigned int Abin=0;
   unsigned int counter1, nWords;
   unsigned int N_FPGA_BYTES;
   unsigned int cs[N_K7_FPGAS] = {CS_K0,CS_K1};
@@ -75,11 +76,17 @@ int main( int argc, const char **argv) {
   // for now, any argument switches to 10G bootfiles, but unless it's special HW variant it defaults to 10G anyway
   if (argc > 1) {
      tenG = 1;
-     if (strcmp(argv[1], "-R") == 0) 
+     if (strcmp(argv[1], "-R") == 0)      
      { 
          Rbin = 1;
          printf("na: %d, argument: %s\n", argc, argv[1]);
      }
+     if (strcmp(argv[1], "-A") == 0) 
+     { 
+         Abin = 1;
+         printf("na: %d, argument: %s\n", argc, argv[1]);
+     }
+
   //printf("na: %d, argument: %s\n", argc, argv[1]);
   } else {
      tenG = 0;
@@ -176,7 +183,13 @@ int main( int argc, const char **argv) {
             printf(" HW Rev = 0x%04X, SN = %d,  loading PNXLK7B_DB04_14_250_1G.bin (DB04 FW ok for DB08)\n", revsn>>16, revsn&0xFFFF);
             N_FPGA_BYTES = N_FPGA_BYTES_B;
          }
-         if((revsn & PNXL_DB_VARIANT_MASK) == 0xF00000)      // no ADC DB: default to DB06
+         if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)
+         {
+            fil = fopen("PNXLK7B_DB10_12_500_1G.bin","rb");
+            printf(" HW Rev = 0x%04X, SN = %d,  loading PNXLK7B_DB10_12_500_1G.bin \n", revsn>>16, revsn&0xFFFF);
+            N_FPGA_BYTES = N_FPGA_BYTES_B;
+         }
+         if((revsn & PNXL_DB_VARIANT_MASK) == 0xF00000)      // no ADC DB: default to DB04
          {
             fil = fopen("PNXLK7B_DB04_14_250_1G.bin","rb");
             printf(" HW Rev = 0x%04X, SN = %d, NO ADC DB! - loading default PNXLK7B_DB04_14_250_1G.bin\n", revsn>>16, revsn&0xFFFF);
@@ -241,12 +254,25 @@ int main( int argc, const char **argv) {
             }
             N_FPGA_BYTES = N_FPGA_BYTES_B;
          }
-         if((revsn & PNXL_DB_VARIANT_MASK) == 0xF00000)      // no ADC DB: default to DB02
+         if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)
+         {
+            fil = fopen("PNXLK7B_DB10_12_500_10G.bin","rb");
+            printf(" HW Rev = 0x%04X, SN = %d,  loading PNXLK7B_DB10_12_500_10G.bin \n", revsn>>16, revsn&0xFFFF);
+            N_FPGA_BYTES = N_FPGA_BYTES_B;
+         }
+         if((revsn & PNXL_DB_VARIANT_MASK) == 0xF00000)      // no ADC DB: default to DB04
          {
             fil = fopen("PNXLK7B_DB04_14_250_10G.bin","rb");
             printf(" HW Rev = 0x%04X, SN = %d, NO ADC DB! - loading default PNXLK7B_DB04_14_250_10G.bin\n", revsn>>16, revsn&0xFFFF);
             N_FPGA_BYTES = N_FPGA_BYTES_B;
          }
+         if(Abin==1)
+         {
+            fil = fopen("PNXLK7B_DB06_14_500_10G.bin","rb");
+            printf(" HW Rev = 0x%04X, SN = %d,  loading PNXLK7B_DB06_14_500_10G.bin (custom boot option -A)\n", revsn>>16, revsn&0xFFFF);
+            N_FPGA_BYTES = N_FPGA_BYTES_B;
+         }
+
 
       }  // end 10G switch
   } else {
@@ -398,12 +424,12 @@ int main( int argc, const char **argv) {
   // 0C   PLL #1 source is Kintex #1, PLL #0 source is PLL #1, Kintex uses TTCL clk from TDF
   // 3C   PLL #1 source is Kintex #1, PLL #0 source is PLL #1, Kintex uses TTCL clk from jitter cleaner
 
-  // note 03 and 3F is not 
+  // note 30 and 0F are not legal 
 
   if( (fippiconfig.CLK_CTRL == 0x00) | 
       (fippiconfig.CLK_CTRL == 0x03) |
       (fippiconfig.CLK_CTRL == 0x0C) |
-      (fippiconfig.CLK_CTRL == 0x3F) ) {
+      (fippiconfig.CLK_CTRL == 0x3C) ) {
       // ok
   }  else {
       printf("Invalid CLK_CTRL = 0x%x, should be 0, 3, 0xC or 0x3C\n",fippiconfig.CLK_CTRL);

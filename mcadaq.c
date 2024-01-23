@@ -69,7 +69,7 @@ int main(void) {
   unsigned int GoodChanMASK[N_K7_FPGAS] = {0} ;
   time_t starttime, currenttime;
   unsigned int tmp0, tmp1, tmp2;
-  unsigned long long WR_tm_tai, WR_tm_tai_start, WR_tm_tai_stop, WR_tm_tai_next;
+  unsigned long long WR_tm_tai_start;
   unsigned int pileup;
   unsigned int evstats, R1;
   unsigned int energy, energyF, bin, over; 
@@ -85,7 +85,9 @@ int main(void) {
   int verbose = 1;      // TODO: control with argument to function  ?
   // 0 print errors and minimal info only
   // 1 print errors and full info
-  int maxmsg = 0;    // number of events to report during processing
+  int maxmsg = 10;    // number of events to report during processing
+  if(!verbose) maxmsg = 0;
+
 
 
   // *************** PS/PL IO initialization *********************
@@ -155,6 +157,11 @@ int main(void) {
   {
       NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB02;
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;          
+  } 
+  if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)
+  {
+      NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB01;
+      NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB01;          
   } 
 
   // check if FPGA booted
@@ -230,109 +237,27 @@ int main(void) {
 
 
   // Run Start Control
+  // synchronize timers
   mapped[AMZ_DEVICESEL] = CS_MZ;	            // select MZ
-  if(SyncT==1)  mapped[ARTC_CLR] = 0x0001;     // any write will create a pulse to clear timers
-
-  if(WR_RTCtrl==1)                             // RunEnable/Live set via WR time comparison  (if startT < WR time < stopT => RunEnable=1) 
-  {
-      mapped[AMZ_DEVICESEL] = CS_K1;	         // specify which K7 
-      mapped[AMZ_EXAFWR] = AK7_PAGE;            // specify   K7's addr:    PAGE register
-      mapped[AMZ_EXDWR]  = PAGE_SYS;            //  PAGE 0: system, page 0x10n = channel n
-
-      // check if WR locked
-      mapped[AMZ_EXAFRD] = AK7_CSROUT;   
-      tmp0 =  mapped[AMZ_EXDRD];    
-      if( (tmp0 & 0x0300) ==0) {
-          printf( "WARNING: WR link down or time not valid, please check via minicom\n" );
-      }
-
-      // get current WR time
-      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+0;   
-      tmp0 =  mapped[AMZ_EXDRD];
-      if(SLOWREAD)      tmp0 =  mapped[AMZ_EXDRD];
-      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+1;   
-      tmp1 =  mapped[AMZ_EXDRD];
-      if(SLOWREAD)      tmp1 =  mapped[AMZ_EXDRD];
-      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+2;   
-      tmp2 =  mapped[AMZ_EXDRD];
-      if(SLOWREAD)      tmp2 =  mapped[AMZ_EXDRD];
-      WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
-
-      //find next "round" time point 
-      WR_tm_tai_next  =  WR_TAI_STEP*(unsigned long long)floor(WR_tm_tai/WR_TAI_STEP)+ WR_TAI_STEP;   // next coarse time step   
-      WR_tm_tai_start =  WR_tm_tai_next;
-      WR_tm_tai_stop  =  WR_tm_tai_next + ReqRunTime - 1;
-      ReqRunTime      = ReqRunTime + WR_TAI_STEP;    // increase time for local DAQ counter accordingly
-
-      printf( "Current WR time %llu\n",WR_tm_tai );
-      printf( "Start time %llu\n",WR_tm_tai_start );
-      printf( "Stop time %llu\n",WR_tm_tai_stop +1);
-
-      // write start/stop to both K7
-      // todo: this requires both K7s to be a WR slave with valid time from master
-      for(k7=0;k7<N_K7_FPGAS;k7++)
-      {     
-         mapped[AMZ_DEVICESEL] =  cs[k7];	   // select FPGA 
-         mapped[AMZ_EXAFWR] = AK7_PAGE;      // specify   K7's addr:    PAGE register
-         mapped[AMZ_EXDWR]  = PAGE_SYS;      //  PAGE 0: system, page 0x10n = channel n
-
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+0;   // specify   K7's addr:    WR start time register
-         mapped[AMZ_EXDWR]  =  WR_tm_tai_start      & 0x00000000FFFF;
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+1;   // specify   K7's addr:    WR start time register
-         mapped[AMZ_EXDWR]  =  (WR_tm_tai_start>>16) & 0x00000000FFFF;
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+2;   // specify   K7's addr:    WR start time register
-         mapped[AMZ_EXDWR]  =  (WR_tm_tai_start>>32) & 0x00000000FFFF;
-   
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+0;   // specify   K7's addr:    WR stop time register
-         mapped[AMZ_EXDWR]  =  WR_tm_tai_stop      & 0x00000000FFFF;
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+1;   // specify   K7's addr:    WR stop time register
-         mapped[AMZ_EXDWR]  =  (WR_tm_tai_stop>>16) & 0x00000000FFFF;
-         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+2;   // specify   K7's addr:    WR stop time register
-         mapped[AMZ_EXDWR]  =  (WR_tm_tai_stop>>32) & 0x00000000FFFF; 
-      } // end K7s
-  }  
-
-  if(WR_RTCtrl==2)                       // RunEnable/Live set via WR time comparison in PicoZed (if startT < WR time < stopT => RunEnable=1) 
-  {
-      mapped[AMZ_DEVICESEL] = CS_MZ;	   // specify which K7 
+  if(SyncT==1)  mapped[ARTC_CLR] = 0x0001;   // any write will create a pulse to clear timers
   
-      // check if WR locked
-      tmp0 =  mapped[AMZ_CSROUTL];    
-      if( (tmp0 & 0x0008) ==0) {
-          printf( "WARNING: WR link down or time not valid (CSR = 0x%X, please check via minicom\n", tmp0 );
-      }
+  // White Rabbit run synchronization
+  if(WR_RTCtrl>0)    
+  {
 
-      // get current WR time  
-      tmp0 =  mapped[AMZ_WR_READ_TAI+0];
-      tmp1 =  mapped[AMZ_WR_READ_TAI+1]; 
-      tmp2 =  mapped[AMZ_WR_READ_TAI+2];
-      WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
+     // get form data -- not implemented for MCA runs
+     //query = getenv("QUERY_STRING");
+     //if(query != NULL) 
+     //    sscanf(query,"WR_tm_tai_start=%llu",&WR_tm_tai_start);
+     //else  
+         WR_tm_tai_start = 0;
+     // call subroutine. Updates ReqRunTime to accommodate WR setup delay
+     ReqRunTime = WRrunstart(mapped, WR_RTCtrl, ReqRunTime, WR_tm_tai_start );
+  }
 
-      //find next "round" time point 
-      WR_tm_tai_next = WR_TAI_STEP*(unsigned long long)floor(WR_tm_tai/WR_TAI_STEP)+ WR_TAI_STEP;   // next coarse time step 
-     // probably bogus. a proper scheme to ensure multiple modules start at the same time should be implemented on the DAQ network master 
-    
-      WR_tm_tai_start =  WR_tm_tai_next;
-      WR_tm_tai_stop  =  WR_tm_tai_next + ReqRunTime - 1;
-      ReqRunTime = ReqRunTime + WR_TAI_STEP;    // increase time for local DAQ counter accordingly
-
-      printf( "Current WR time %llu\n",WR_tm_tai );
-      printf( "Start time %llu\n",WR_tm_tai_start );
-      printf( "Stop time %llu\n",WR_tm_tai_stop +1);
-
-      // write start/stop to PZ
-      mapped[AMZ_WR_START_TAI]    =   WR_tm_tai_start      & 0x00000000FFFF;
-      mapped[AMZ_WR_START_TAI+1]  =  (WR_tm_tai_start>>16) & 0x00000000FFFF;
-      mapped[AMZ_WR_START_TAI+2]  =  (WR_tm_tai_start>>32) & 0x00000000FFFF;
-      mapped[AMZ_WR_STOP_TAI]     =   WR_tm_tai_stop      & 0x00000000FFFF;
-      mapped[AMZ_WR_STOP_TAI+1]   =  (WR_tm_tai_stop>>16) & 0x00000000FFFF;
-      mapped[AMZ_WR_STOP_TAI+1]   =  (WR_tm_tai_stop>>32) & 0x00000000FFFF; 
-
-  }  
-
-
-   
+  // finally, start run 
   mapped[AMZ_DEVICESEL] = CS_MZ;	// select MZ
+  mapped[AMZ_RUNCTRL] = 0x0008;    // MCA FIFO enabled 
   mapped[AMZ_CSRIN] = 0x0001;      // RunEnable=1 > nLive=0 (DAQ on)
    // this is a bit in a MZ register tied to a line to both FPGAs
    // falling edge of nLive clears counters and memory address pointers
@@ -364,6 +289,7 @@ int main(void) {
                energy   = tmp1 & 0xFFFE;
                over     = (tmp0 & 0x10) >> 4;                     // negative or overflow
                pileup   = (tmp0 & 0x20) >> 5;                     // pileup
+               // not checking TTCL accept bit, it's redundant in DF=5
                if(eventcount<maxmsg) printf( "CSR: 0x%x MCA FIFO: ch %d, E %d (0x %x %x)\n", tmp2, ch, energy, tmp0, tmp1 );
                
                if( (PILEUPCTRL[ch]==0)  || (PILEUPCTRL[ch]==1 && !pileup )  )  // this pileup check is probably redundant, already applied in FPGA 
@@ -392,6 +318,7 @@ int main(void) {
                energy = tmp1 & 0xFFFE;
                over     = (tmp0 & 0x10) >> 4;                     // negative or overflow
                pileup   = (tmp0 & 0x20) >> 5;                     // pileup
+               // not checking TTCL accept bit, it's redundant in DF=5
                if(eventcount<maxmsg) printf( "CSR: 0x%x MCA FIFO: ch %d, E %d (0x %x %x)\n", tmp2, ch, energy, tmp0, tmp1 );
 
                if( (PILEUPCTRL[ch]==0)  || (PILEUPCTRL[ch]==1 && !pileup )  )  // this pileup check is probably redundant, also in FPGA 
@@ -455,6 +382,7 @@ int main(void) {
            
                      // extract pileup bit
                      pileup  = energyF & 0x1;                     // last bit of FIFO E is pilup
+                                                                  // should check TTCL accept here also, but not available from E FIFO with a single read
               
                      if( (PILEUPCTRL[ch]==0)     || (PILEUPCTRL[ch]==1 && !pileup )    )
                      {    // either don't care  OR pilup test required and  pileup bit not set
@@ -524,52 +452,32 @@ int main(void) {
 
    // ********************** Run Stop **********************
 
-   /* debug */
-
-
-   if(WR_RTCtrl==1) 
-   {
-      mapped[AMZ_DEVICESEL] = CS_K1;	   // specify which K7 
-      mapped[AMZ_EXAFWR] = AK7_PAGE;      // specify   K7's addr:    PAGE register
-      mapped[AMZ_EXDWR]  = PAGE_SYS;      // PAGE 0: system, page 0x10n = channel n
-
-      // get current time
-      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+0;   
-      tmp0 =  mapped[AMZ_EXDRD];
-      if(SLOWREAD)      tmp0 =  mapped[AMZ_EXDRD];
-      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+1;   
-      tmp1 =  mapped[AMZ_EXDRD];
-      if(SLOWREAD)      tmp1 =  mapped[AMZ_EXDRD];
-      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+2;   
-      tmp2 =  mapped[AMZ_EXDRD];
-      if(SLOWREAD)      tmp2 =  mapped[AMZ_EXDRD];
-      WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
-
-      printf( "Current WR time (K7) %llu\n",WR_tm_tai );     
-   }
-
-
-   if(WR_RTCtrl==2)                       // RunEnable/Live set via WR time comparison in PicoZed (if startT < WR time < stopT => RunEnable=1) 
-   {
-      mapped[AMZ_DEVICESEL] = CS_MZ;	   // specify which K7 
-  
-      // get current WR time  
-      tmp0 =  mapped[AMZ_WR_READ_TAI+0];
-      tmp1 =  mapped[AMZ_WR_READ_TAI+1]; 
-      tmp2 =  mapped[AMZ_WR_READ_TAI+2];
-      WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
-
-      printf( "Current WR time (PZ) %llu\n",WR_tm_tai );
-   } 
-
-   printf( "Run completed\n" );
-
-   /* end debug */
-
    // set nLive bit to stop run
    mapped[AMZ_DEVICESEL] = CS_MZ;	 // select MZ
    mapped[AMZ_CSRIN] = 0x0000; // all off       
    // todo: there may be events left in the buffers. need to stop, then keep reading until nothing left
+
+
+   /* info and debug */
+
+   if(WR_RTCtrl>0) WRrunstop(mapped, WR_RTCtrl );   // print out White Rabbit related info at end of run
+
+  if(fippiconfig.DATA_FLOW<4) 
+  {
+     printf( "Run completed. Events transferred %d\n",eventcount );
+  } 
+  else 
+  {
+     printf( "Run completed. Events histogramed %d\n",MCA0counts+MCA1counts);
+  }
+
+  // analyze MCAs for single peak FWHM. MCA base assumed to be 0 outside peak, peak min 50 high
+  if(verbose)  MCAquickfit(NCHANNELS_PRESENT, &mca[0][0]);
+
+
+   /* end  info and debug */
+
+
                       
    // final save MCA and RS
    filmca = fopen("MCA.csv","w");

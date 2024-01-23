@@ -354,3 +354,53 @@ Function ComputeE_triggers()
 
 
 End
+
+
+Function Fit4peaks(channel)
+Variable channel
+
+	Wave MCAStartFitChannel=root:pixie4:MCAStartFitChannel
+	Wave MCAEndFitChannel=root:pixie4:MCAEndFitChannel
+	Nvar MCAfitOption =  root:pixie4:MCAfitOption
+	
+	Variable Npeaks, peak, xa, xb
+	String wvn, tracename
+	Variable popNum
+	String ctrlName,popStr
+	Npeaks=4
+	
+	popNum = channel+1
+	ctrlName = "GaussFitMCA"
+	popStr = ""
+	wvn = "root:pixie4:MCAch"+num2str(channel)
+	wave wav =$(wvn)
+	tracename = "MCAch"+num2str(channel)
+	
+	xa = 0				
+	xb = 32000
+	MCAfitOption = 4			// fit within cursors
+	Execute "Pixie_Plot_MCA_XL()"		// bring plot to front
+	
+	
+	
+	for(peak=0;peak<Npeaks;peak+=1)
+	
+		Findlevel/q/R=(xa,xb) wav, 100
+		
+		if(V_flag==1)
+			print "No peak found"
+		else
+			cursor/W=MCASpectrumDisplayXL A $tracename (V_LevelX-100)
+			cursor/W=MCASpectrumDisplayXL B $tracename (V_LevelX+100)
+			
+			Pixie_Math_GaussFit_XL(ctrlName,popNum,popStr)
+			
+			xa = V_LevelX+200
+		endif
+	
+	
+	endfor
+
+
+
+End

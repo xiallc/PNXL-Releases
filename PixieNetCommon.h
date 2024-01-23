@@ -57,6 +57,7 @@ extern "C"
   unsigned int hwinfo( volatile unsigned int *mapped,unsigned int I2Csel );
   float board_temperature( volatile unsigned int *mapped, unsigned int I2Csel  );
   float zynq_temperature();
+  unsigned int version_check( volatile unsigned int *mapped, unsigned int RUN_TYPE);
 
   int read_print_runstats(int mode, int dest, volatile unsigned int *mapped );
   int read_print_runstats_XL_2x4(int mode, int dest, volatile unsigned int *mapped );
@@ -64,12 +65,16 @@ extern "C"
 
   int ADCinit_DB01(volatile unsigned int *mapped );
   int PLLinit(volatile unsigned int *mapped );
+  unsigned int WRrunstart(volatile unsigned int *mapped, unsigned int WR_RTCtrl,  unsigned int ReqRunTime, unsigned long long WR_tm_tai_start );
+  unsigned int WRrunstop(volatile unsigned int *mapped, unsigned int WR_RTCtrl );
+  int MCAquickfit(unsigned int NCHANNELS_PRESENT, unsigned int *mca);
 
   int setdacs01(volatile unsigned int *mapped, unsigned int *dacs); 
   int setdacs04(volatile unsigned int *mapped, unsigned int *dacs); 
   int setdacs08(volatile unsigned int *mapped, unsigned int *dacs); 
   unsigned int ADCSPI_Write06(volatile unsigned int *mapped, unsigned int k7, unsigned int ch_k7, unsigned int addr, unsigned int data);
   unsigned int ADCSPI_Read06(volatile unsigned int *mapped, unsigned int k7, unsigned int ch_k7, unsigned int addr);
+  unsigned int ADCSPI_Read10(volatile unsigned int *mapped, unsigned int k7, unsigned int ch_k7, unsigned int addr);
 
   int ramp_dacs(   volatile unsigned int *mapped,  // address space for MZ I/O
             unsigned int revsn,                    // HW revision and s/n

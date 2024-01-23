@@ -65,18 +65,23 @@
   hwinfo                      [ok]     returns 32bit hwrev_sn from PROM I2C I/O, or 0 on error
   board_temperature           [ok]     returns temperature from PROM I2C I/O 
   zynq_temperature            [ok]     returns temperature from Zynq temperature "file"
+  version_check               [  ]     checks version numbers for mismatch between SW, FW, HW
   read_print_runstats         [--]     prints all run statistics in various modes, Pixie-Net legacy
   read_print_runstats_XL_2x4  [ok]     prints all run statistics in various modes, Pixie-Net XL up to 16 channels
   read_print_rates_XL_2x4     [ok]     prints all run statistics in various modes, Pixie-Net XL up to 16 channels
   
   ADCinit_DB01                [ok]     special steps required to initialize ADC DB01
   PLLinit                     [--]     special steps required to initialize WR PLL (low jitter version, now unused)
+  WRrunstart                  [  ]     special steps required for run start syncchronization with White Rabbit
+  WRrunstop                   [  ]     special steps required for run end syncchronization with White Rabbit (info only at this point, actually)
+  MCAquickfit                 [ok]     analyze MCA in local memory for peak resolution
 
   setdacs08                   [ok]     programs DAC values for DB08 (I2C)
   setdacs04                   [ok]     programs DAC values for DB04 (I2C)
   setdacs01                   [ok]     programs DAC values for DB01, DB06 (SPI)
-  ADCSPI_Read06               [ok]     read ADC SPI, DB06
-  ADCSPI_Write06              [ok]     write ADC SPI, DB06
+  ADCSPI_Read06               [ok]     read  ADC SPI, DB06
+  ADCSPI_Write06              [ok]     write ADC SPI, DB06 (and DB02,4,8)
+  ADCSPI_Read10               [ok]     read  ADC SPI, DB010
                                  
   get_average                 [ok]     compute average of samples (unsigned int)
   get_faverage                [ok]     compute average of samples (double)
@@ -262,6 +267,165 @@ void I2Csend4bytes(volatile unsigned int *mapped, unsigned int *data0,  unsigned
    
    return(0);
  }
+
+ unsigned int version_check( volatile unsigned int *mapped, unsigned int RUN_TYPE)
+ {
+   unsigned int revsn, pcb, db, mz_hw, mz_fw, k7_fw, mval, reglo;
+   unsigned int cs[N_K7_FPGAS] = {CS_K0,CS_K1};
+   int k7;
+   unsigned int versionok=1;                       // assume no mismatch 
+    
+
+     // ---------------------- Version check ----------------------
+   // PCB_VERSION == HW_VERSION except for 2nd last digit, 4th digit optional
+   // 2nd last digit of PS_CODE_VERSION should be same as 2nd digit of FW versions (e.g. 0x0322 and 0x21## )
+   // 2nd last digit of PCB_VERSION should be same as 2nd last digit of Kintex FW versions (DB ID)
+
+
+   // 1)  PCB_VERSION and Zynq HW_VERSION (indicates HW compatibility, i.e. Zynq FW compiled for this HW)
+   //     for example, PCB_VERSION 0xA1#2 (Pixie-Net XL Rev C, with DB=#) must use Zynq FW designed for HW 0xA102.  
+   //     Zynq FW does not care for the DB #, so it's always 0 and masked out in the test
+   //     First digit of PCB_VERSION varies with board configuration (A = std 10G, B = 1G WR, C = TTCL 10G, D = 10G + PZ WR)
+   //     First digit of Zynq HW_VERSION varies with Zynq model: A= MZ, D = PZ, E = ZT)
+   //     Exceptions: HW changes in Pixie-Net XL Rev C do not affect controller (at this point) so ok to use HW_VERSION 0x---1 with PCB_VERSION 0x---2
+   revsn = hwinfo(mapped,I2C_SELMAIN);    // contains PCB_VERSION
+   pcb =  (revsn>>16);
+   mapped[AMZ_DEVICESEL] = CS_MZ;         
+   mz_hw = mapped[AMZ_HW_VER];            // read MZ HW_VERSION
+   if( (pcb&0x0F0F) != (mz_hw & 0x0F0F))                      
+   {
+      if(    ((pcb&0x000F)==2) && ((mz_hw&0x000F)==1)  )
+      {
+         // exception: board Rev C (2) is ok with MZ for rev B (1)
+      } else {
+         printf(" Mismatch of main board per PROM (PCB_VERSION = 0x%04X) and Zynq controller firmware (HW_VERSION = 0x%04X)\n",(revsn>>16) & 0xFFFF, mz_hw & 0xFFFF);
+         versionok = 0;
+      }
+   }
+
+   // 2) PS_CODE_VERSION and Zynq FW_VERSION (indicates compatibility between SW and Zynq FW)
+   //    for example, PS_CODE_VERSION 0x03XY must use FW_VERSION 0xXY#Z
+   //    XY are incremented for every release. But one code may lag behind the other, so difference in Y is allowed
+   //    FW_VERSION includes placeholder for DB #
+   //    FW_VERSION last digit indicates custom code variant 
+   //    Exceptions: Zynq FW_VERSION 0x25 -- can still be used with  PS_CODE_VERSION 0x033x, except for DB08 and DB10
+   //                Zynq FW_version 0x400 is new for DB10, can still use with Sw 3.3x
+   mz_fw = mapped[AMZ_FW_VER];           // contains MZ FW_VERSION   
+   if( (PS_CODE_VERSION&0xF0) != ((mz_fw>>8) & 0xF0) ) 
+   {
+      if( (mz_fw == 0x4000) ||  ((mz_fw == 0x2500) &&  ((PS_CODE_VERSION & 0xFF0) == 0x0330))   )
+      {
+         // no error
+         versionok = versionok ;
+      }
+      else
+      {
+         printf(" Mismatch of SW (PS_CODE_VERSION = 0x%04X) and Zynq controller firmware (FW_VERSION = 0x%04X)\n",PS_CODE_VERSION, mz_fw & 0xFFFF);
+         versionok = 0;
+      }
+   }
+
+   // 2a) Zynq FW_VERSION and DB #
+   //     Contrary to above, Zynq FW 0x25-- does not know about DB08 and higher
+   revsn = hwinfo(mapped,I2C_SELDB1);    // contains DB #
+   db =  (revsn>>16);
+   if( (mz_fw == 0x2500) && ((db&0x00F0) > 0x0070) )
+   {
+      printf(" Mismatch of DB type (0x%04X) and Zynq controller firmware (FW_VERSION = 0x%04X)\n",db, mz_fw & 0xFFFF);
+      versionok = 0; 
+   }
+
+   // checks involving the 2 Kintex FPGAs
+   //revsn = hwinfo(mapped,I2C_SELMAIN);    // contains PCB_VERSION
+   for(k7=0;k7<N_K7_FPGAS;k7++)
+   {
+
+     mapped[AMZ_DEVICESEL] = cs[k7];	            // select FPGA  
+     mapped[AMZ_EXAFWR]    = AK7_PAGE;             // write to  k7's addr        addr 3 = channel/system, select    
+     mapped[AMZ_EXDWR]     = PAGE_SYS;             // 0x000  = system page   
+     
+     mapped[AMZ_EXAFRD] = AK7_SYS_FW_VER;    // contains K7 FW_VERSION
+     k7_fw = mapped[AMZ_EXDRD];
+     if(SLOWREAD) k7_fw = mapped[AMZ_EXDRD];   
+
+     // 3) PS_CODE_VERSION and Kintex FW_VERSION (indicates compatibility between SW and Kintex FW)
+     //    for example, PS_CODE_VERSION 0x03XY must use FW_VERSION 0xXY#Z
+     //    XY are incremented for every release. But one code may lag behind the other, so difference in Y is allowed
+     //    FW_VERSION includes placeholder for DB #
+     //    FW_VERSION last digit indicates custom code variant 
+     if( (PS_CODE_VERSION&0xF0) != ((k7_fw>>8) & 0xF0) ) 
+     {
+         printf(" Mismatch of SW (PS_CODE_VERSION = 0x%04X) and Kintex firmware (FW_VERSION = 0x%04X)\n",PS_CODE_VERSION, k7_fw & 0xFFFF);
+         versionok = 0;
+     }
+
+     // 4) PCB_VERSION and Kintex FW_VERSION (indicates HW compatibility for DB #)
+     //    for example, PCB_VERSION A1#2 must match FW_VERSION 0xXY#Z in the # field
+     //    Exceptions: DB04 FW works also for DB08
+     if( (pcb&0xF0) != (k7_fw & 0xF0) ) 
+     {
+         if( ((pcb&0xF0) == 0x0080) && ( (k7_fw & 0xF0)==0x0040) )
+         {
+            // ok, DB04 FW can be used for DB08
+            printf(" Using Kintex firmware (FW_VERSION = 0x--%02X) for DB08 (PCB_VERSION = 0x--%02X) \n", k7_fw & 0x00FF,pcb & 0x00FF);
+         }
+         else
+         {
+            printf(" Mismatch of main or daughter board per PROM (PCB_VERSION = 0x%04X) and Kintex firmware (FW_VERSION = 0x%04X)\n",pcb & 0xFFFF, k7_fw & 0xFFFF);
+            versionok = 0;
+         }
+     }
+ 
+     // 5) Special tests
+     // a) Runtype 0x404 only supported in special FW variants
+     if( (RUN_TYPE == 0x404) && !( ((k7_fw & 0xFF)==0x42) ||  ((k7_fw & 0xF0)==0x60) ) ) 
+     {
+         printf(" Runtype 0x404 only supported for FW version 0x__42 (DB04) or 0x__6_ (DB06)\n");
+         versionok = 0;
+     }
+     if( (RUN_TYPE == 0x404) && !( (PS_CODE_VERSION==0x033A) ||  ((k7_fw)==0x3A42) ) ) 
+     {
+         printf(" Runtype 0x404: mismatch of SW and FW \n");
+         versionok = 0;
+     }
+
+   }  // end for K7
+
+
+
+   // While we are at it, do a system status and health check, e.g. ADC clock locked, ADC frame ok (DB01) 
+   revsn = hwinfo(mapped,I2C_SELMAIN);    // contains PCB_VERSION
+   for(k7=0;k7<N_K7_FPGAS;k7++)
+   {
+
+     mapped[AMZ_DEVICESEL] = cs[k7];	            // select FPGA  
+     mapped[AMZ_EXAFWR]    = AK7_PAGE;             // write to  k7's addr        addr 3 = channel/system, select    
+     mapped[AMZ_EXDWR]     = PAGE_SYS;             // 0x000  = system page   
+         
+     mapped[AMZ_EXAFRD] = AK7_ADCFRAME;    // contains K7 FW_VERSION
+     reglo = mapped[AMZ_EXDRD];
+     if(SLOWREAD) reglo = mapped[AMZ_EXDRD];  
+
+     if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)
+         mval = 0x1600;    // only 2 ADCs active for DB08
+     else
+         mval = 0x1F00;    // all 4 ADCs active
+     if( (reglo & 0xFF00) !=mval)
+         printf(" Warning: Some ADC channels may be missing (DB%d missing clocks, 0x%04x) \n", k7, reglo);
+
+     if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_125) | ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_75) )  
+     {
+         if( (reglo & 0xFF) != ADC_FRAME_DB01) printf(" Warning: DB%d ADC not properly initialized !\n", k7);
+     }
+
+   }  // end for K7  
+
+
+   // done with all version tests
+   return versionok;
+ }
+
+
 
 
 unsigned int hwinfo( volatile unsigned int *mapped, unsigned int I2Csel)
@@ -1088,7 +1252,11 @@ int read_print_runstats_XL_2x4(int mode, int dest, volatile unsigned int *mapped
       NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB02;
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;          
    }
-
+   if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)
+   {
+      NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB01;
+      NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB01;          
+   }
 
   // ---------------- open the output file -------------------------------------------
   if(dest != 1)  {
@@ -1779,6 +1947,287 @@ int PLLinit(volatile unsigned int *mapped ) {
 
 
 
+unsigned int WRrunstop(volatile unsigned int *mapped, unsigned int WR_RTCtrl ) {
+ // prints out White Rabbit related info at end of run
+
+ unsigned long long WR_tm_tai;
+ unsigned int tmp0, tmp1, tmp2;
+
+  if(WR_RTCtrl==1) 
+  {
+     mapped[AMZ_DEVICESEL] = CS_K1;	   // specify which K7 
+     mapped[AMZ_EXAFWR] = AK7_PAGE;      // specify   K7's addr:    PAGE register
+     mapped[AMZ_EXDWR]  = PAGE_SYS;      //  PAGE 0: system, page 0x10n = channel n
+
+     // get current time
+     mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+0;   
+     tmp0 =  mapped[AMZ_EXDRD];
+     if(SLOWREAD)      tmp0 =  mapped[AMZ_EXDRD];
+     mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+1;   
+     tmp1 =  mapped[AMZ_EXDRD];
+     if(SLOWREAD)      tmp1 =  mapped[AMZ_EXDRD];
+     mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+2;   
+     tmp2 =  mapped[AMZ_EXDRD];
+     if(SLOWREAD)      tmp2 =  mapped[AMZ_EXDRD];
+     WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
+
+     printf( "Current WR time (K7) %llu s\n",WR_tm_tai );   
+  }
+
+  if(WR_RTCtrl==2)                       // RunEnable/Live set via WR time comparison in PicoZed (if startT < WR time < stopT => RunEnable=1) 
+  {
+     mapped[AMZ_DEVICESEL] = CS_MZ;	   // specify which K7 
+  
+     // get current WR time  
+     tmp0 =  mapped[AMZ_WR_READ_TAI+0];        // TODO: odd offset by 1 in address
+     tmp1 =  mapped[AMZ_WR_READ_TAI+1]; 
+     tmp2 =  mapped[AMZ_WR_READ_TAI+2];
+     WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
+     printf( "Current WR time %llu s (0x %x %x %x)\n",WR_tm_tai, tmp2, tmp1, tmp0 );
+
+  }
+
+  return 0;
+
+
+}
+
+
+unsigned int WRrunstart(volatile unsigned int *mapped, unsigned int WR_RTCtrl,  unsigned int ReqRunTime, unsigned long long WR_tm_tai_start ) {
+ // sets up run start synchronization with White Rabbit
+
+ unsigned long long WR_tm_tai, WR_tm_tai_start_loc, WR_tm_tai_stop, WR_tm_tai_next;
+ unsigned int tmp0, tmp1, tmp2, ReqRunTimeRet;
+ int k7;
+ unsigned int cs[N_K7_FPGAS] = {CS_K0,CS_K1};
+
+ if(WR_RTCtrl==3 || WR_RTCtrl==4)            // RunEnable/Live set via WR time comparison in Kintex or PZ, user specified start time from web query 
+  {
+      // get form data
+    // query = getenv("QUERY_STRING");
+    // if( (query != NULL) && (sscanf(query,"WR_tm_tai_start=%llu",&WR_tm_tai_start)==1) )  {
+    if(WR_tm_tai_start>0) {
+
+       WR_tm_tai_stop  =  WR_tm_tai_start + ReqRunTime - 1;
+
+       if(WR_RTCtrl==3)                           // RunEnable/Live set via WR time comparison in Kintex  
+       {
+         // write start/stop to both K7
+         // todo: this requires both K7s to be a WR slave with valid time from master
+         for(k7=0;k7<N_K7_FPGAS;k7++)
+         {     
+            mapped[AMZ_DEVICESEL] =  cs[k7];	   // select FPGA 
+            mapped[AMZ_EXAFWR] = AK7_PAGE;      // specify   K7's addr:    PAGE register
+            mapped[AMZ_EXDWR]  = PAGE_SYS;      //  PAGE 0: system, page 0x10n = channel n
+   
+            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+0;   // specify   K7's addr:    WR start time register
+            mapped[AMZ_EXDWR]  =  WR_tm_tai_start      & 0x00000000FFFF;
+            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+1;   // specify   K7's addr:    WR start time register
+            mapped[AMZ_EXDWR]  =  (WR_tm_tai_start>>16) & 0x00000000FFFF;
+            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+2;   // specify   K7's addr:    WR start time register
+            mapped[AMZ_EXDWR]  =  (WR_tm_tai_start>>32) & 0x00000000FFFF;
+      
+            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+0;   // specify   K7's addr:    WR stop time register
+            mapped[AMZ_EXDWR]  =  WR_tm_tai_stop      & 0x00000000FFFF;
+            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+1;   // specify   K7's addr:    WR stop time register
+            mapped[AMZ_EXDWR]  =  (WR_tm_tai_stop>>16) & 0x00000000FFFF;
+            mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+2;   // specify   K7's addr:    WR stop time register
+            mapped[AMZ_EXDWR]  =  (WR_tm_tai_stop>>32) & 0x00000000FFFF; 
+         } // end K7s
+
+       } //end  WR_RTCtrl==3
+
+       if(WR_RTCtrl==4)   
+       {
+         // write start/stop to PZ
+         mapped[AMZ_WR_START_TAI]    =   WR_tm_tai_start      & 0x00000000FFFF;
+         mapped[AMZ_WR_START_TAI+1]  =  (WR_tm_tai_start>>16) & 0x00000000FFFF;
+         mapped[AMZ_WR_START_TAI+2]  =  (WR_tm_tai_start>>32) & 0x00000000FFFF;
+         mapped[AMZ_WR_STOP_TAI]     =   WR_tm_tai_stop       & 0x00000000FFFF;
+         mapped[AMZ_WR_STOP_TAI+1]   =  (WR_tm_tai_stop>>16)  & 0x00000000FFFF;
+         mapped[AMZ_WR_STOP_TAI+2]   =  (WR_tm_tai_stop>>32)  & 0x00000000FFFF; 
+       }  //end  WR_RTCtrl==4
+
+
+     } else {
+         printf( "WARNING: No start time given for WR_RTCtrl=3 (or 4). Continuing as WR_RTCtrl=1 (or 2) \n" );
+         WR_RTCtrl = WR_RTCtrl - 2;
+     }
+
+
+  }   //end  WR_RTCtrl==3 or 4
+  
+
+  if(WR_RTCtrl==1)                           // RunEnable/Live set via WR time comparison in Kintex  (if startT < WR time < stopT => RunEnable=1) 
+  {
+      mapped[AMZ_DEVICESEL] = CS_K1;	      // specify which K7 
+      mapped[AMZ_EXAFWR] = AK7_PAGE;         // specify   K7's addr:    PAGE register
+      mapped[AMZ_EXDWR]  = PAGE_SYS;         // PAGE 0: system, page 0x10n = channel n
+
+      // check if WR locked
+      mapped[AMZ_EXAFRD] = AK7_CSROUT;   
+      tmp0 =  mapped[AMZ_EXDRD];   
+      if(SLOWREAD)      tmp0 =  mapped[AMZ_EXDRD];
+      if( (tmp0 & 0x0300) ==0) {
+          printf( "WARNING: WR link down or time not valid, please check via minicom\n" );
+      }
+
+      // get current WR time
+      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+0;   
+      tmp0 =  mapped[AMZ_EXDRD];
+      if(SLOWREAD)      tmp0 =  mapped[AMZ_EXDRD];
+      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+1;   
+      tmp1 =  mapped[AMZ_EXDRD];
+      if(SLOWREAD)      tmp1 =  mapped[AMZ_EXDRD];
+      mapped[AMZ_EXAFRD] = AK7_WR_TM_TAI+2;   
+      tmp2 =  mapped[AMZ_EXDRD];
+      if(SLOWREAD)      tmp2 =  mapped[AMZ_EXDRD];
+      WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
+
+      //find next "round" time point 
+      WR_tm_tai_next = WR_TAI_STEP*(unsigned long long)floor(WR_tm_tai/WR_TAI_STEP)+ WR_TAI_STEP;   // next coarse time step
+     // if( WR_tm_tai_next - WR_tm_tai < WR_TAI_MARGIN)                                          // if too close, 
+     //       WR_tm_tai_next = WR_tm_tai_next + WR_TAI_STEP;                                     // one more step   
+     // probably bogus. a proper scheme to ensure multiple modules start at the same time should be implemented on the DAQ network master 
+    
+      WR_tm_tai_start_loc =  WR_tm_tai_next;
+      WR_tm_tai_stop  =  WR_tm_tai_next + ReqRunTime - 1;
+      ReqRunTimeRet = ReqRunTime + WR_TAI_STEP;    // increase time for local DAQ counter accordingly
+
+      printf( "Current WR time %llu s\n",WR_tm_tai );
+      printf( "Start time %llu s\n",WR_tm_tai_start_loc );
+      printf( "Stop time %llu s\n",WR_tm_tai_stop +1);
+
+      // write start/stop to both K7
+      // todo: this requires both K7s to be a WR slave with valid time from master
+      for(k7=0;k7<N_K7_FPGAS;k7++)
+      {     
+         mapped[AMZ_DEVICESEL] =  cs[k7];	   // select FPGA 
+         mapped[AMZ_EXAFWR] = AK7_PAGE;      // specify   K7's addr:    PAGE register
+         mapped[AMZ_EXDWR]  = PAGE_SYS;      //  PAGE 0: system, page 0x10n = channel n
+
+         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+0;   // specify   K7's addr:    WR start time register
+         mapped[AMZ_EXDWR]  =  WR_tm_tai_start_loc      & 0x00000000FFFF;
+         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+1;   // specify   K7's addr:    WR start time register
+         mapped[AMZ_EXDWR]  =  (WR_tm_tai_start_loc>>16) & 0x00000000FFFF;
+         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_START+2;   // specify   K7's addr:    WR start time register
+         mapped[AMZ_EXDWR]  =  (WR_tm_tai_start_loc>>32) & 0x00000000FFFF;
+   
+         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+0;   // specify   K7's addr:    WR stop time register
+         mapped[AMZ_EXDWR]  =  WR_tm_tai_stop      & 0x00000000FFFF;
+         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+1;   // specify   K7's addr:    WR stop time register
+         mapped[AMZ_EXDWR]  =  (WR_tm_tai_stop>>16) & 0x00000000FFFF;
+         mapped[AMZ_EXAFWR] =  AK7_WR_TM_TAI_STOP+2;   // specify   K7's addr:    WR stop time register
+         mapped[AMZ_EXDWR]  =  (WR_tm_tai_stop>>32) & 0x00000000FFFF; 
+      } // end K7s
+  }  
+
+  if(WR_RTCtrl==2)                       // RunEnable/Live set via WR time comparison in PicoZed (if startT < WR time < stopT => RunEnable=1) 
+  {
+      mapped[AMZ_DEVICESEL] = CS_MZ;	   // specify which K7 
+  
+      // check if WR locked
+      tmp0 =  mapped[AMZ_CSROUTL];    
+      if( (tmp0 & 0x0008) ==0) {
+          printf( "WARNING: WR link down or time not valid (CSR = 0x%X, please check via minicom\n", tmp0 );
+      }
+
+      // get current WR time  
+      tmp0 =  mapped[AMZ_WR_READ_TAI+0];    
+      tmp1 =  mapped[AMZ_WR_READ_TAI+1]; 
+      tmp2 =  mapped[AMZ_WR_READ_TAI+2];
+      WR_tm_tai = tmp0 +  65536*tmp1 + TWOTO32*tmp2;
+
+      //find next "round" time point 
+      WR_tm_tai_next = WR_TAI_STEP*(unsigned long long)floor(WR_tm_tai/WR_TAI_STEP)+ WR_TAI_STEP;   // next coarse time step 
+     // probably bogus. a proper scheme to ensure multiple modules start at the same time should be implemented on the DAQ network master 
+    
+      WR_tm_tai_start_loc =  WR_tm_tai_next;
+      WR_tm_tai_stop  =  WR_tm_tai_next + ReqRunTime - 1;
+      ReqRunTimeRet = ReqRunTime + WR_TAI_STEP;    // increase time for local DAQ counter accordingly
+
+      printf( "Current WR time %llu (0x %x %x %x)\n",WR_tm_tai, tmp2, tmp1, tmp0 );
+      printf( "Start time %llu\n",WR_tm_tai_start_loc );
+      printf( "Stop time %llu\n",WR_tm_tai_stop +1);
+
+      // write start/stop to PZ
+      mapped[AMZ_WR_START_TAI]    =   WR_tm_tai_start_loc      & 0x00000000FFFF;
+      mapped[AMZ_WR_START_TAI+1]  =  (WR_tm_tai_start_loc>>16) & 0x00000000FFFF;
+      mapped[AMZ_WR_START_TAI+2]  =  (WR_tm_tai_start_loc>>32) & 0x00000000FFFF;
+      mapped[AMZ_WR_STOP_TAI]     =   WR_tm_tai_stop      & 0x00000000FFFF;
+      mapped[AMZ_WR_STOP_TAI+1]   =  (WR_tm_tai_stop>>16) & 0x00000000FFFF;
+      mapped[AMZ_WR_STOP_TAI+2]   =  (WR_tm_tai_stop>>32) & 0x00000000FFFF; 
+
+  }  
+
+  return ReqRunTimeRet;
+
+ }
+
+
+
+ int MCAquickfit(unsigned int NCHANNELS_PRESENT, unsigned int *mca) {
+
+ unsigned int tmp0, tmp1, tmp2;
+ int ch, k, out0;
+
+ // analyze MCAs for single peak FWHM. MCA base assumed to be 0 outside peak, peak min 50 high
+
+  printf( "Checking resolution of highest peak in MCA (>50) \n");
+  for(ch=0;ch<NCHANNELS_PRESENT;ch++)
+  {        
+      // find max, maxpos of rightmost peak
+      tmp0=0; tmp1=0;
+      for( k=(MAX_MCA_BINS-1); k >1; k--)
+      {
+          // look for a local max
+          if(mca[ch*MAX_MCA_BINS+k] > tmp0) 
+          {
+            tmp0 = mca[ch*MAX_MCA_BINS+k]; 
+            tmp1 = k;
+          }
+
+          // end if back down to base
+          if( (mca[ch*MAX_MCA_BINS+k] < tmp0/10) && (tmp0>=50) ) 
+          {
+            k=1;
+          }
+      }   // end find max
+
+      if(tmp1>0)
+      {
+         // go down from max to half on right side
+         k = tmp1;
+         do 
+         {
+            k=k+1;
+         } while( (k<MAX_MCA_BINS) && (mca[ch*MAX_MCA_BINS+k] > tmp0/2) );
+         tmp2 = k;
+   
+         // go down from max to half on right side
+         k = tmp1;
+         do 
+         {
+            k=k-1;   
+         } while( (k>1) && (mca[ch*MAX_MCA_BINS+k] > tmp0/2) );
+         out0 = tmp2 - k;
+   
+         printf( " ch.%02d peak: max %d at %d, FWHM = %d (%4.2f percent)\n",ch,tmp0,tmp1,out0,(double)out0/(double)tmp1*100.0 );
+      }
+      else
+      {
+          printf( " ch.%02d: no peak found \n",ch);
+      }
+
+  } // end for channels
+
+  return 0;
+
+}   // end MCAquickfit
+
+
+
+
 int read_print_rates_XL_2x4(int dest, volatile unsigned int *mapped ) {
 // only print times and rates   (mode 1)
 // dest 0: print to file
@@ -1850,6 +2299,11 @@ int read_print_rates_XL_2x4(int dest, volatile unsigned int *mapped ) {
    {
       NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB02;
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;   
+   }
+   if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)
+   {
+      NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB01;
+      NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB01;   
    }
   // ---------------- open the output file -------------------------------------------
   if(dest != 1)  {
@@ -2070,6 +2524,68 @@ int setdacs01(volatile unsigned int *mapped, unsigned int *dacs)
           
    return(0);
 } // end setdacs01
+
+unsigned int ADCSPI_Read10(volatile unsigned int *mapped, unsigned int k7, unsigned int ch_k7, unsigned int addr)
+// read one byte from ADC SPI
+      /*   ISLA21xPyy SPI interface
+           16 bit ctrl/addr and 8 bit data = 24 bits
+           MSB sequence is R/W WW A12..A0 D7..D0
+
+           upper 8  bits written to AK7_PLLSPIA register
+           lower 16 bits written to AK7_ADCSPI  register which also starts the transfer
+
+           bits 11-8 of AK7_PLLSPIA set the channel enable for ch. 3-0
+
+           For writes, simply 1 transfer with upper byte = 0, middle byte  = reg address, low byte = data
+
+           For reads, 
+           - write to SPI reg 0 to enable 4-wire transfers 0x 00 00 18     (different form other ADCs!)
+           - SPI read action                               0x 80 <addr> <anything>
+           - read SPI data byte from "ADCframe"  
+
+           read chip ID:       data/addr = 0x00 / 0x8008     returns 0x48 for ISLA214P50
+           read chip ID:       data/addr = 0x00 / 0x8009     returns 0x00
+           read I2E status:    data/addr = 0x00 / 0x8030     returns 0x18 after boot,  0x1E when switched on (with some problems)    
+           read I2E control:   data/addr = 0x00 / 0x8031     returns 0x20 if off, 0x21 if on   
+           enable I2E :        data/addr = 0x21 / 0x0031 
+
+        */
+
+{
+   unsigned int reghi, reglo, value;
+   unsigned int cs[N_K7_FPGAS] = {CS_K0,CS_K1};
+   
+   mapped[AMZ_DEVICESEL] = cs[k7];	      // select FPGA  
+   mapped[AMZ_EXAFWR]    = AK7_PAGE;       // write to  k7's addr        addr 3 = channel/system, select    
+   mapped[AMZ_EXDWR]     = PAGE_SYS;       //  0x000  = system page                
+   
+   // write to enable 4-wire SPI
+   reghi = 0x00 + (1<<(ch_k7+8));        // bits 0-7 are upper 8 bits of serial data (R/nW WW A12..A8) data. bits 8-11 are chip select for this channel
+   mapped[AMZ_EXAFWR] = AK7_PLLSPIA;    // write to  k7's addr     addr 0x1B = PLL SPIA (for upper 8 bit) 
+   mapped[AMZ_EXDWR] = reghi;            // write to ADC SPI    
+   reglo = 0x0018;     
+   mapped[AMZ_EXAFWR] = AK7_ADCSPI;     // write to  k7's addr     addr 0x5 = ADC SPI for lower 16 bit of serial data and starting the serial write 
+   mapped[AMZ_EXDWR] = reglo;            // write to ADC SPI
+   usleep(100);
+   
+   // SPI read transaction from address <mval>
+   reghi = 0x80 + (1<<(ch_k7+8));        // bits 0-7 are upper 8 bits of serial data (R/nW WW A12..A8) data. bits 8-11 are chip select for this channel
+   mapped[AMZ_EXAFWR] = AK7_PLLSPIA;    // write to  k7's addr     addr 0x1B = PLL SPIA (for upper 8 bit) 
+   mapped[AMZ_EXDWR] = reghi;            // write to ADC SPI    
+   reglo = (addr<<8)+0x00;                       // read from 0x08     
+   mapped[AMZ_EXAFWR] = AK7_ADCSPI;     // write to  k7's addr     addr 0x5 = ADC SPI for lower 16 bit of serial data and starting the serial write 
+   mapped[AMZ_EXDWR] = reglo;            // write to ADC SPI
+   usleep(100);
+   
+   mapped[AMZ_EXAFRD] = AK7_ADCFRAME;        // 
+   value =  mapped[AMZ_EXDRD];
+   if(SLOWREAD)  value =  mapped[AMZ_EXDRD];
+   
+   //   if(1) printf(" (K7) ch. %d: ADC SPI read from 0x%02X: 0x%02X\n",ch_k7, addr,value & 0xFF);
+   
+   return(value&0xFF);
+}
+
 
 unsigned int ADCSPI_Read06(volatile unsigned int *mapped, unsigned int k7, unsigned int ch_k7, unsigned int addr)
 // read one byte from ADC SPI
@@ -2321,6 +2837,13 @@ int ramp_dacs( volatile unsigned int *mapped,          // address space for MZ I
       NGAINS            =  2; 
       MAX_ADC           =  16383;
    }
+   if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)
+   {
+      NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB01;
+      NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB01;
+      NGAINS            =  2;
+      MAX_ADC           =  4095;
+   } 
    if((revsn & PNXL_DB_VARIANT_MASK) == 0xF00000)      // no ADC DB: default to DB02
    {
       printf("HW Rev = 0x%04X, SN = %d, NO ADC DB! - assuming default DB02_12_250\n", revsn>>16, revsn&0xFFFF);

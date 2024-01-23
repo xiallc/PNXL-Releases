@@ -86,8 +86,8 @@ int main(void) {
     return rval;
   }
   
-  unsigned int mval, reglo, reghi,traceena; // dac
-  unsigned int CW, SFR, FFR, SL[NCHANNELS], SG[NCHANNELS], FL[NCHANNELS], FG[NCHANNELS], TH[NCHANNELS];
+  unsigned int mval, reglo, reghi,traceena, addr, data; // dac
+  unsigned int SFR, FFR, SL[NCHANNELS], SG[NCHANNELS], FL[NCHANNELS], FG[NCHANNELS], TH[NCHANNELS];
   unsigned int PSAM, TL[NCHANNELS], TD[NCHANNELS], SAVER0[NCHANNELS];
   unsigned int i2cdata[8], i2caddr[8];
   unsigned int dacs[NCHANNELS];
@@ -104,9 +104,10 @@ int main(void) {
   unsigned int cs[N_K7_FPGAS] = {CS_K0,CS_K1};
   int ch, k7, ch_k7;    // loop counter better be signed int  . ch = abs ch. no; ch_k7 = ch. no in k7
   unsigned int revsn, NCHANNELS_PER_K7, NCHANNELS_PRESENT, NSAMPLES_PER_CYCLE;
-  unsigned int ADC_CLK_MHZ, SYSTEM_CLOCK_MHZ, FILTER_CLOCK_MHZ;
+  unsigned int ADC_CLK_MHZ, FILTER_CLOCK_MHZ; //, SYSTEM_CLOCK_MHZ;
   unsigned long long mac;
   unsigned int dip, sip;
+  unsigned int long_trace=0;
   int sval;
 
   // *************** PS/PL IO initialization *********************
@@ -142,8 +143,8 @@ int main(void) {
   // ************************** check HW version ********************************
 
 
-  revsn = hwinfo(mapped,I2C_SELMAIN);    // some settings may depend on HW variants
-  SYSTEM_CLOCK_MHZ   =  SYSTEM_CLOCK_MHZ_MOST;     // defaults
+  revsn = hwinfo(mapped,I2C_SELMAIN);    // some settings may depend on HW variants     
+  //SYSTEM_CLOCK_MHZ   =  SYSTEM_CLOCK_MHZ_MOST;     // defaults
   FILTER_CLOCK_MHZ   =  FILTER_CLOCK_MHZ_MOST; 
 
 
@@ -152,7 +153,7 @@ int main(void) {
       NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB01;
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB01;
       ADC_CLK_MHZ       =  ADC_CLK_MHZ_DB01_75;             
-      SYSTEM_CLOCK_MHZ  =  SYSTEM_CLOCK_MHZ_DB01;
+      //SYSTEM_CLOCK_MHZ  =  SYSTEM_CLOCK_MHZ_DB01;
       FILTER_CLOCK_MHZ  =  FILTER_CLOCK_MHZ_DB01;
   }
   if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_125)
@@ -197,13 +198,19 @@ int main(void) {
       NCHANNELS_PER_K7   =  NCHANNELS_PER_K7_DB02;
       ADC_CLK_MHZ        =  ADC_CLK_MHZ_DB04;    
   } 
-  if((revsn & PNXL_DB_VARIANT_MASK) == 0xF00000)      // no ADC DB: default to DB02
+  if((revsn & PNXL_DB_VARIANT_MASK) == 0xF00000)      // no ADC DB: default to DB04
   {
       printf("HW Rev = 0x%04X, SN = %d, NO ADC DB! - assuming default DB04_14_250\n", revsn>>16, revsn&0xFFFF);
       NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB02;
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB02;
       ADC_CLK_MHZ       =  ADC_CLK_MHZ_DB02;
   }
+    if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)
+  {
+      NCHANNELS_PRESENT  =  NCHANNELS_PRESENT_DB01;
+      NCHANNELS_PER_K7   =  NCHANNELS_PER_K7_DB01;
+      ADC_CLK_MHZ        =  ADC_CLK_MHZ_DB10_500;    
+  } 
 
   NSAMPLES_PER_CYCLE =  (int)floor(ADC_CLK_MHZ/FILTER_CLOCK_MHZ); 
 
@@ -214,6 +221,7 @@ int main(void) {
        return -5;
   }
 
+  // **********  FPGA register programming:  ******************
   // take struct values, convert to FPGA units, write to register, one by one
   // error/dependency check: returns -xxyy, 
   // with xx = parameter number (line) in file and yy = channel number (0 for module)
@@ -257,13 +265,7 @@ int main(void) {
       return -800;
     }
     
-    /* // CLK CTRL:
-    if( (fippiconfig.CLK_CTRL == 3) | (fippiconfig.CLK_CTRL == 0) ) {
-      // ok
-    }  else {
-      printf("Invalid CLK_CTRL = 0x%x, should be 0 or 3\n",fippiconfig.CLK_CTRL);
-      return -900;
-    }    */
+    // CLK CTRL: used only in bootfpga. All tests applied there 
 
     //  WR_RUNTIME_CTRL:
     if(fippiconfig.WR_RUNTIME_CTRL > 2) {
@@ -271,7 +273,7 @@ int main(void) {
       return -1000;
     }
 
-    // UDP_PAUSE
+    // UDP_PAUSE:
     if(fippiconfig.UDP_PAUSE < 5) {
       printf("Invalid UDP_PAUSE = %d, must be >= 5\n",fippiconfig.UDP_PAUSE);
       return -1100;
@@ -449,35 +451,35 @@ int main(void) {
 
 
     //MAX_EVENTS      -- not written to FPGA registers
-    if(fippiconfig.MAX_EVENTS > 65535) {
-      printf("Invalid MAX_EVENTS = 0x%x\n",fippiconfig.MAX_EVENTS);
-      return -2300;
-    }
+    //if(fippiconfig.MAX_EVENTS > 65535) {
+    //  printf("Invalid MAX_EVENTS = 0x%x\n",fippiconfig.MAX_EVENTS);
+    //  return -2300;
+    //}
 
     // COINCIDENCE_PATTERN -- unused P16
-    if(fippiconfig.COINCIDENCE_PATTERN > 65535) {
-      printf("Invalid COINCIDENCE_PATTERN = 0x%x\n",fippiconfig.COINCIDENCE_PATTERN);
-      return -2400;
-    }
+    //if(fippiconfig.COINCIDENCE_PATTERN > 65535) {
+    //  printf("Invalid COINCIDENCE_PATTERN = 0x%x\n",fippiconfig.COINCIDENCE_PATTERN);
+    //  return -2400;
+    //}
 
     // COINCIDENCE_WINDOW   -- unused P16?
-    CW = (int)floorf(fippiconfig.COINCIDENCE_WINDOW*SYSTEM_CLOCK_MHZ);       // multiply time in us *  # ticks per us = time in ticks
-    if( (CW > MAX_CW) | (CW < MIN_CW) ) {
-      printf("Invalid COINCIDENCE_WINDOW = %f, must be between %f and %f us\n",fippiconfig.COINCIDENCE_WINDOW, (double)MIN_CW/(double)SYSTEM_CLOCK_MHZ, (double)MAX_CW/(double)SYSTEM_CLOCK_MHZ);
-      return -2500;
-    }
+    //CW = (int)floorf(fippiconfig.COINCIDENCE_WINDOW*SYSTEM_CLOCK_MHZ);       // multiply time in us *  # ticks per us = time in ticks
+    //if( (CW > MAX_CW) | (CW < MIN_CW) ) {
+    //  printf("Invalid COINCIDENCE_WINDOW = %f, must be between %f and %f us\n",fippiconfig.COINCIDENCE_WINDOW, (double)MIN_CW/(double)SYSTEM_CLOCK_MHZ, (double)MAX_CW/(double)SYSTEM_CLOCK_MHZ);
+    //  return -2500;
+    //}
 
-     // SYNC_AT_START      --  written to FPGA registers XXX  ?
+     // SYNC_AT_START      --  written to FPGA registers 
     if(fippiconfig.SYNC_AT_START >2) {
-      printf("Invalid SYNC_AT_START = %d, can only be 0 and 1\n",fippiconfig.SYNC_AT_START);
+      printf("Invalid SYNC_AT_START = %d, can only be 0, 1 and 2\n",fippiconfig.SYNC_AT_START);
       return -2600;
     }
 
-     // RESUME        -- not written to FPGA registers
-    if(fippiconfig.RESUME >1) {
-      printf("Invalid RESUME = %d, can only be 0 and 1\n",fippiconfig.RESUME);
-      return -2700;
-    }
+    // RESUME        -- not written to FPGA registers
+    //if(fippiconfig.RESUME >1) {
+    //  printf("Invalid RESUME = %d, can only be 0 and 1\n",fippiconfig.RESUME);
+    //  return -2700;
+    //}
  
 
     // SLOW_FILTER_RANGE      --  written to FPGA registers below (with energy filter)
@@ -487,22 +489,22 @@ int main(void) {
       return -2800;
     }
 
-     // FAST_FILTER_RANGE   -- not implemented for now
+    // FAST_FILTER_RANGE   -- not implemented for now
     FFR = fippiconfig.FAST_FILTER_RANGE;
     if( (FFR > MAX_FFR) | (FFR < MIN_FFR) ) {
       printf("Invalid FAST_FILTER_RANGE = %d, must be between %d and %d\n",FFR,MIN_FFR, MAX_FFR);
       return -2900;
     }
 
-     // FASTTRIG_BACKPLANEENA -- not implemented for now
+    // FASTTRIG_BACKPLANEENA -- not implemented for now
 
-     // TRIG_CONFIG# -- not implemented for now
+    // TRIG_CONFIG# -- not implemented for now
 
-     // check group mode       
-     if( (fippiconfig.GROUPMODE_K7 > 6) || (fippiconfig.GROUPMODE_K7 < 0)   )  {
-         printf("Invalid GROUPMODE_K7 = %d, must be between %d and %d \n",fippiconfig.GROUPMODE_K7, 0, 3);
+    // check group mode       
+    if( (fippiconfig.GROUPMODE_FIP > 6) || (fippiconfig.GROUPMODE_FIP < 0)   )  {
+         printf("Invalid GROUPMODE_FIP = %d, must be between %d and %d \n",fippiconfig.GROUPMODE_FIP, 0, 3);
          return -3000;
-     }
+    }
 
     if(fippiconfig.GATE_LENGTH >255 || fippiconfig.GATE_LENGTH <1 ) {
       printf("Invalid GATE_LENGTH = %d, must be between 1 and 255 cycles",fippiconfig.GATE_LENGTH);
@@ -542,35 +544,35 @@ int main(void) {
       SL[ch] = (int)floorf(fippiconfig.ENERGY_RISETIME[ch] * FILTER_CLOCK_MHZ);
       SL[ch] = SL[ch] >> SFR;
       if(SL[ch] < MIN_SL) {
-         printf("Invalid ENERGY_RISETIME = %f, minimum %f us at this filter range\n",fippiconfig.ENERGY_RISETIME[ch],(double)((MIN_SL<<SFR)/FILTER_CLOCK_MHZ));
+         printf("Invalid ENERGY_RISETIME = %f, minimum %f us at this filter range\n",fippiconfig.ENERGY_RISETIME[ch],(double)(MIN_SL<<SFR)/FILTER_CLOCK_MHZ);
          return -4200-ch;
       } 
       SG[ch] = (int)floorf(fippiconfig.ENERGY_FLATTOP[ch] * FILTER_CLOCK_MHZ);
       SG[ch] = SG[ch] >> SFR;
       if(SG[ch] < MIN_SG) {
-         printf("Invalid ENERGY_FLATTOP = %f, minimum %f us at this filter range\n",fippiconfig.ENERGY_FLATTOP[ch],(double)((MIN_SG<<SFR)/FILTER_CLOCK_MHZ));
+         printf("Invalid ENERGY_FLATTOP = %f, minimum %f us at this filter range\n",fippiconfig.ENERGY_FLATTOP[ch], (double)(MIN_SG<<SFR)/FILTER_CLOCK_MHZ );
          return -4300-ch;
       } 
       if( (SL[ch]+SG[ch]) > MAX_SLSG) {
-         printf("Invalid combined energy filter, maximum %f us at this filter range\n",(double)((MAX_SLSG<<SFR)/FILTER_CLOCK_MHZ));
+         printf("Invalid combined energy filter, maximum %f us at this filter range\n",(double)(MAX_SLSG<<SFR)/FILTER_CLOCK_MHZ);
          return -4400-ch;
       } 
 
-  // trigger filter 
+      // trigger filter 
       FL[ch] = (int)floorf(fippiconfig.TRIGGER_RISETIME[ch] * FILTER_CLOCK_MHZ);
       FL[ch] = FL[ch] >> FFR;
       if(FL[ch] < MIN_FL) {
-         printf("Invalid TRIGGER_RISETIME = %f, minimum %f us\n",fippiconfig.TRIGGER_RISETIME[ch],(double)(MIN_FL<<FFR/FILTER_CLOCK_MHZ));
+         printf("Invalid TRIGGER_RISETIME = %f, minimum %f us\n",fippiconfig.TRIGGER_RISETIME[ch],(double)(MIN_FL<<FFR)/FILTER_CLOCK_MHZ);
          return -4500-ch;
       } 
       FG[ch] = (int)floorf(fippiconfig.TRIGGER_FLATTOP[ch] * FILTER_CLOCK_MHZ);
       FG[ch] = FG[ch] >> FFR;
       if(FG[ch] < MIN_FG) {
-         printf("Invalid TRIGGER_FLATTOP = %f, minimum %f us\n",fippiconfig.TRIGGER_FLATTOP[ch],(double)(MIN_FG<<FFR/FILTER_CLOCK_MHZ));
+         printf("Invalid TRIGGER_FLATTOP = %f, minimum %f us\n",fippiconfig.TRIGGER_FLATTOP[ch],(double)(MIN_FG<<FFR)/FILTER_CLOCK_MHZ);
          return -4600-ch;
       } 
       if( (FL[ch]+FG[ch]) > MAX_FLFG) {
-         printf("Invalid combined trigger filter, maximum %f us\n",(double)(MAX_FLFG<FFR/FILTER_CLOCK_MHZ));
+         printf("Invalid combined trigger filter, maximum %f us\n",(double)(MAX_FLFG<FFR)/FILTER_CLOCK_MHZ);
          return -4700-ch;
       } 
       
@@ -603,11 +605,21 @@ int main(void) {
             
             // IP Packets over 1500 bytes might not make it. Check TL + largest event header against that limit. 
             if(TL[ch]*2 + ETH_HDR_LEN_404  >= MAX_UDP_SIZE_BYTES)   {     
-               printf("WARNING: TRACE_LENGTH = %f (ch. %d) may exceed IP packet length of %d bytes.\nThis could cause loss of data in transmission\n",fippiconfig.TRACE_LENGTH[ch],ch, MAX_UDP_SIZE_BYTES);
+               if( (fippiconfig.DATA_FLOW==3) | (fippiconfig.RUN_TYPE != 0x410) ) printf("WARNING: TRACE_LENGTH = %f (ch. %d) may exceed IP packet length of %d bytes. This could cause loss of data in transmission. Use RunType 0x410 for multi-packet transmission. \n",fippiconfig.TRACE_LENGTH[ch],ch, MAX_UDP_SIZE_BYTES);
                // return -4900-ch; // let users take a chance?
+
+               if(fippiconfig.DATA_FLOW==4)
+               {
+                  // DF=4 can manage long traces in multiple packets but TL must be a multiple of 8x32 samples. Only tested for run type 0x410 at this point
+                  TL[ch] = 8*MULT_TL*(int)floor(fippiconfig.TRACE_LENGTH[ch]*ADC_CLK_MHZ/MULT_TL/8/(1<<FFR) );
+                  long_trace = 1;
+
+               } // end DF=4
             }
 
-       }
+            
+
+      }
 
       if(TL[ch] <fippiconfig.TRACE_LENGTH[ch]*ADC_CLK_MHZ/(1<<FFR))  {
          printf("TRACE_LENGTH[%d] will be rounded off to = %f us, %d samples\n",ch,(double)TL[ch]/ADC_CLK_MHZ,TL[ch]);
@@ -656,8 +668,9 @@ int main(void) {
          printf("Invalid TAU = %f, must be positive\n",fippiconfig.TAU[ch]);
          return -5800-ch;
       }
+      //printf("tau ch %d = %5.4f\n", ch, fippiconfig.TAU[ch]);
 
-      if( (fippiconfig.XDT[ch] < (MIN_XDT/FILTER_CLOCK_MHZ)) || (fippiconfig.XDT[ch] > (MAX_XDT/FILTER_CLOCK_MHZ)) ) {
+      if( (fippiconfig.XDT[ch] < ((double)MIN_XDT/FILTER_CLOCK_MHZ)) || (fippiconfig.XDT[ch] > ((double)MAX_XDT/FILTER_CLOCK_MHZ)) ) {
          printf("Invalid XDT = %f us, must be at least %f us and less than %f us\n",fippiconfig.XDT[ch],(double)MIN_XDT/FILTER_CLOCK_MHZ,(double)MAX_XDT/FILTER_CLOCK_MHZ );
          return -5900-ch;
       }
@@ -753,7 +766,7 @@ int main(void) {
       } 
 
 
-      // QDC parameters specified in samples, not as as in P16!
+      // QDC parameters specified in samples, not us as in P16!
       //printf("  ch. %d: QDCLen0 = %d, QDCDel0 =%d\n", ch, fippiconfig.QDCLen0[ch], fippiconfig.QDCDel0[ch]);
       if  ( (fippiconfig.CHANNEL_CSRA[ch] & (1<<CCSRA_QDCENA)) >0 )  {
 
@@ -924,7 +937,7 @@ int main(void) {
          }
 
 
-       } // end QDC ena
+      } // end QDC ena
 
       // EMIN can be used to cut outputs below a threshold of interest. TODO: use CSR bits to specify where cuts occur      
       if( (fippiconfig.EMIN[ch] > 65535) || (fippiconfig.EMIN[ch] < 0)  )  {
@@ -939,8 +952,8 @@ int main(void) {
       }
 
       // check group mode       
-      if( (fippiconfig.GROUPMODE_FIP[ch] > 3) || (fippiconfig.GROUPMODE_FIP[ch] < 0)   )  {
-         printf("Invalid GROUPMODE_FIP = %d, must be between %d and %d \n",fippiconfig.GROUPMODE_FIP[ch], 0, 3);
+      if( (fippiconfig.GROUPMODE_CH[ch] > 3) || (fippiconfig.GROUPMODE_CH[ch] < 0)   )  {
+         printf("Invalid GROUPMODE_CH = %d, must be between %d and %d \n",fippiconfig.GROUPMODE_CH[ch], 0, 3);
          return -112000-ch;
       }
 
@@ -952,15 +965,15 @@ int main(void) {
    // -------------- now package  and write -------------------
 
    // - - - - CONTROLLER REGISTERS IN MZ - - - -
-   mapped[AMZ_DEVICESEL] = CS_MZ;	  // select MicroZed Controller
+   mapped[AMZ_DEVICESEL] = CS_MZ;	         // select MicroZed Controller
 
   
    // first, set CSR run control options   
-   mapped[AMZ_CSRIN] = 0x0000; // all off)
-   mapped[AMZ_RUNCTRL] = 0x0000;    // MCA FIFO disabled
+   mapped[AMZ_CSRIN] = 0x0000;               // all off)
+   mapped[AMZ_RUNCTRL] = 0x0000;             // MCA FIFO disabled
 
-   mval =  fippiconfig.AUX_CTRL  & 0x00FF;  // lower bits from ini parameter. upper bits reserved for run options etc
-   // mval = mval + 0x0100;     // set bit 8: yellow LED on  (no longer in use)
+   mval =  fippiconfig.AUX_CTRL  & 0x00FF;   // lower bits from ini parameter. upper bits reserved for run options etc
+   // mval = mval + 0x0100;                  // set bit 8: yellow LED on  (no longer in use)
 
    mapped[AAUXCTRL] = mval;
    if(mapped[AAUXCTRL] != mval) printf("Error writing AUX_CTRL register\n");
@@ -972,39 +985,53 @@ int main(void) {
       mapped[AMZ_DEVICESEL] =  cs[k7];	// select FPGA 
 
 
-      // SYSTEM REGISTERS IN K7
+      // - - - -  SYSTEM REGISTERS IN K7 - - - - 
       // Note: no "module" registers as this is confusing (2 K7 in this "desktop module", no system FPGA)
         
-      mapped[AMZ_EXAFWR] = AK7_PAGE;      // specify   K7's addr:    PAGE register
-      mapped[AMZ_EXDWR]  = PAGE_SYS;      //  PAGE 0: system, page 0x10n = channel n  
+      mapped[AMZ_EXAFWR] = AK7_PAGE;         // specify   K7's addr:    PAGE register
+      mapped[AMZ_EXDWR]  = PAGE_SYS;         //  PAGE 0: system, page 0x10n = channel n  
       mapped[AMZ_EXAFRD] = AK7_SYS_RS;
    
-      // ................ WR runtime control > system CSR register .............................
-      reglo = 0;                          // write 0 to reset
-      mapped[AMZ_EXAFWR] = AK7_SCSRIN;    // write to  k7's addr to select register for write
-      mapped[AMZ_EXDWR]  = reglo;         // write lower 16 bit
+      // ................ runtime control > system CSR register .............................
+      reglo = 0;                             // write 0 to reset
+      mapped[AMZ_EXAFWR] = AK7_SCSRIN;       // write to  k7's addr to select register for write
+      mapped[AMZ_EXDWR]  = reglo;            // write lower 16 bit
    
-      reglo = reglo + setbit(fippiconfig.WR_RUNTIME_CTRL,WRC_RUNTIME_K7, SCSR_WRRUNTIMECTRL   );      // check for bit enabling WR runtime control
+      reglo = reglo + setbit(fippiconfig.WR_RUNTIME_CTRL,WRC_RUNTIME_K7, SCSR_WRRUNTIMECTRL   );   // check for bit enabling WR runtime control
       reglo = reglo + setbit(fippiconfig.MODULE_CSRA,MCSRA_P4ERUNSTATS, SCSR_P4ERUNSTATS   );      // check for bit enabling P4e convention for live time etc
       if(fippiconfig.DATA_FLOW==4) reglo = reglo + (1<<SCSR_AUTOUDP);                              // enabling LM UDP output without interaction with C code
       if(fippiconfig.DATA_FLOW==5) reglo = reglo + (1<<SCSR_AUTOQSPI);                             // enabling MCA output (only) to FIFO without interaction with C code
       if(fippiconfig.DATA_FLOW!=5) reglo = reglo + (1<<SCSR_HDRENA);                               // disable header memory in pure MCA runs where ARM only reads E from FIFO
-      if(fippiconfig.DATA_FLOW==6) reglo = reglo + (1<<SCSR_DMCONTROL);                            // require DM approval to move data from SDRAM FIFO to WR (Eth out)
+      //if(fippiconfig.DATA_FLOW==6) reglo = reglo + (1<<SCSR_DMCONTROL);                          // require DM approval to move data from SDRAM FIFO to WR (Eth out)  (discontinued)
+      reglo = reglo + setbit(fippiconfig.MODULE_CSRA,MCSRA_FP_TTCL, SCSR_FP_TTCL   );              // option to use front panel signal as start of TCTL acceptance window    
       //reglo = reglo + (1<<7);    // enable 10G test
-      reglo = reglo + setbit(fippiconfig.MODULE_CSRA,MCSRA_FP_COUNT,  SCSR_FP_COUNT   );        // option to count FP pulses as ext_ts, else local clock (or WR) 
-      reglo = reglo + setbit(fippiconfig.MODULE_CSRA,MCSRA_FP_VETO,   SCSR_FP_VETO   );         // option to use FP as VETO
-      reglo = reglo + setbit(fippiconfig.MODULE_CSRA,MCSRA_FP_EXTCLR, SCSR_FP_EXTCLR   );       // option to use FP to clear ext_ts  
-      reglo = reglo + setbit(fippiconfig.MODULE_CSRA,MCSRA_FP_PEDGE,  SCSR_FP_PEDGE   );        // option to select rising/falling edge for count or clear.  
+      
+      reglo = reglo + setbit(fippiconfig.MODULE_CSRA,MCSRA_FP_COUNT,  SCSR_FP_COUNT   );           // option to count FP pulses as ext_ts, else local clock (or WR) 
+      reglo = reglo + setbit(fippiconfig.MODULE_CSRA,MCSRA_FP_VETO,   SCSR_FP_VETO   );            // option to use FP as VETO
+      reglo = reglo + setbit(fippiconfig.MODULE_CSRA,MCSRA_FP_EXTCLR, SCSR_FP_EXTCLR   );          // option to use FP to clear ext_ts  
+      reglo = reglo + setbit(fippiconfig.MODULE_CSRA,MCSRA_FP_PEDGE,  SCSR_FP_PEDGE   );           // option to select rising/falling edge for count or clear.  
       if( (fippiconfig.RUN_TYPE == 0x404 ) ||
           (fippiconfig.RUN_TYPE == 0x410 ) ||
           (fippiconfig.RUN_TYPE == 0x411 ) )
-         reglo = reglo + (1<<SCSR_HDRLONG);                   // long LM headers for runtype 0x404, 410, 411
-      if( fippiconfig.SYNC_AT_START == 2)  reglo = reglo + (1<<SCSR_SYNC_AT_LIVE);              // option to clear time stamps in K7 at falling edge of Live 
+         reglo = reglo + (1<<SCSR_HDRLONG);                                                        // long LM headers for runtype 0x404, 410, 411
+      if( fippiconfig.SYNC_AT_START == 2)  reglo = reglo + (1<<SCSR_SYNC_AT_LIVE);                 // option to clear time stamps in K7 at falling edge of Live 
        
+      // TODO: add TTCL clock control bits   SCSR_TTCL_CLK_OUT,  SCSR_TTCL_CLK_SL
+
       mapped[AMZ_EXAFWR] = AK7_SCSRIN;    // write to  k7's addr to select register for write
       mapped[AMZ_EXDWR]  = reglo;        // write lower 16 bit
 
-      // ................ WR Ethernet output settings .............................
+      // extended system CSR ("CSRinC")
+      if(long_trace)         // bit 0 indicates multi-UDP event
+         reglo=1;
+      else
+         reglo=0;      
+
+      mapped[AMZ_EXAFWR] = AK7_SCSRINC;    // write to  k7's addr to select register for write
+      mapped[AMZ_EXDWR]  = reglo;        // write lower 16 bit
+
+
+      // ................ Ethernet output settings .............................
 
       // MAC addresses
       if(k7==0)
@@ -1058,158 +1085,172 @@ int main(void) {
          sip = fippiconfig.SRC_IP0;
       else 
          sip = fippiconfig.SRC_IP1;
-      mapped[AMZ_EXAFWR] =  AK7_ETH_SRC_IP;     // specify   K7's addr:    source IP (should match WR EPROM)
+      mapped[AMZ_EXAFWR] =  AK7_ETH_SRC_IP;     // specify   K7's addr:    source IP (should match WR EPROM [if 1G] )
       mapped[AMZ_EXDWR]  =  sip      & 0x00000000FFFF;
       mapped[AMZ_EXAFWR] =  AK7_ETH_SRC_IP+1;   // specify   K7's addr:    
       mapped[AMZ_EXDWR]  =  (sip>>16) & 0x00000000FFFF;
 
       // IPv4 checksum computation: SHORT (20 word header only)
       mval = 0;
-      mval = mval + 0x4500;              // version etc
+      mval = mval + 0x4500;                        // version etc
       if( fippiconfig.RUN_TYPE == 0x404 )  
-         mval = mval + ETH_HDR_LEN_404x8;                  // 40 word data header (80bytes) [x8], 8bytes UDP header, 20 bytes IPv4 header, 6 bytes filler, 8 bytes system info = 122  [682]
+         mval = mval + ETH_HDR_LEN_404x8;          // 40 word data header (80bytes) [x8], 8bytes UDP header, 20 bytes IPv4 header, 6 bytes filler, 8 bytes system info = 122  [682]
       else if( fippiconfig.RUN_TYPE == 0x410 )  
-         mval = mval + ETH_HDR_LEN_410;                  // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes 
+         mval = mval + ETH_HDR_LEN_410;            // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes 
       else if( fippiconfig.RUN_TYPE == 0x411 )  
          mval = mval + ETH_HDR_LEN_410;    
       else if( fippiconfig.RUN_TYPE == 0x110 )  
-         mval = mval + ETH_HDR_LEN_110;                  // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes 
+         mval = mval + ETH_HDR_LEN_110;            // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes 
       else if( fippiconfig.RUN_TYPE == 0x111 )  
          mval = mval + ETH_HDR_LEN_110;                  
       else if( fippiconfig.RUN_TYPE == 0x104 )  
-         mval = mval + ETH_HDR_LEN_104;                  // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes 
+         mval = mval + ETH_HDR_LEN_104;            // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes 
       else 
-         mval = mval + ETH_HDR_LEN_100;                  // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header  
-      mval = mval + 0;                   // identification
-      mval = mval + 0;                   // flags, fragment offset
-      mval = mval + 0x3F11;              // time to live (63), protocol UPD (17)
-      mval = mval + 0;                   // checksum
-      mval = mval + (sip>>16);           // source ip
-      mval = mval + (sip & 0xFFFF);      // source ip
-      mval = mval + (dip>>16);           // dest ip
-      mval = mval + (dip & 0xFFFF);      // dest ip
-      mval = (mval&0xFFFF) + (mval>>16); // add accumulated carrys 
-      mval = mval + (mval>>16);                // add any more carrys
+         mval = mval + ETH_HDR_LEN_100;            // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header  
+      mval = mval + 0;                             // identification
+      mval = mval + 0;                             // flags, fragment offset
+      mval = mval + 0x3F11;                        // time to live (63), protocol UPD (17)
+      mval = mval + 0;                             // checksum
+      mval = mval + (sip>>16);                     // source ip
+      mval = mval + (sip & 0xFFFF);                // source ip
+      mval = mval + (dip>>16);                     // dest ip
+      mval = mval + (dip & 0xFFFF);                // dest ip
+      mval = (mval&0xFFFF) + (mval>>16);           // add accumulated carrys 
+      mval = mval + (mval>>16);                    // add any more carrys
       reglo = ~mval;      
     //  reglo = 0xF66D;
-      mapped[AMZ_EXAFWR] =  AK7_ETH_CHECK_SHORT;     // specify   K7's addr:    checksum (SHORT)
+      mapped[AMZ_EXAFWR] =  AK7_ETH_CHECK_SHORT;   // specify   K7's addr:    checksum (SHORT)
       mapped[AMZ_EXDWR]  =  reglo;
    //   printf("WR Ethernet data checksum FPGA %d (SHORT) = 0x%x\n",k7, reglo & 0xFFFF);
 
       // IPv4 checksum computation: LONG (20 word header plus trace)
-      // Note: all channels must have same TL!
+      // Notes: - all channels must have same TL!
+      //        - use 1/8 TL here for "long_trace" in DF=4
       mval = 0;
-      mval = mval + 0x4500;              // version etc
+      mval = mval + 0x4500;                        // version etc
       if( fippiconfig.RUN_TYPE == 0x404 )  
-        // mval = mval + TL[0]*2 + ETH_HDR_LEN_404;                  // 40 word data header (80bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 bytes filler, 8 bytes system info = 122 +  2*TL waveform bytes
+      // mval = mval + TL[0]*2 + ETH_HDR_LEN_404;  // 40 word data header (80bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 bytes filler, 8 bytes system info = 122 +  2*TL waveform bytes
          mval = mval + ETH_HDR_LEN_404x8; 
       else if( fippiconfig.RUN_TYPE == 0x410 )  
-         mval = mval + TL[0]*2 + ETH_HDR_LEN_410;                  // 28 word data header (56bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes that are part of reorted data = 
+         if(long_trace)
+           mval = mval+(TL[0]>>2)+ETH_HDR_LEN_410; // 1/8 of full TL
+         else
+           mval = mval+TL[0]*2+ETH_HDR_LEN_410;    // 28 word data header (56bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes that are part of reorted data =         
       else if( fippiconfig.RUN_TYPE == 0x411 )  
          mval = mval + TL[0]*2 + ETH_HDR_LEN_410;    
       else if( fippiconfig.RUN_TYPE == 0x110 )  
-         mval = mval + TL[0]*2 + ETH_HDR_LEN_110;                  // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes 
+         mval = mval + TL[0]*2 + ETH_HDR_LEN_110;  // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes 
       else if( fippiconfig.RUN_TYPE == 0x111 )  
          mval = mval + TL[0]*2 + ETH_HDR_LEN_110; 
       else if( fippiconfig.RUN_TYPE == 0x104 )  
-         mval = mval + TL[0]*2 + ETH_HDR_LEN_104;                  // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes +  2*TL waveform bytes
+         mval = mval + TL[0]*2 + ETH_HDR_LEN_104;  // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header, 6 filler bytes +  2*TL waveform bytes
       else 
-         mval = mval + TL[0]*2 + ETH_HDR_LEN_100;                  // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header +  2*TL waveform bytes 
-      mval = mval + 0;                   // identification
-      mval = mval + 0;                   // flags, fragment offset
-      mval = mval + 0x3F11;              // time to live (63), protocol UPD (17)
-      mval = mval + 0;                   // checksum
-      mval = mval + (sip>>16);           // source ip
-      mval = mval + (sip & 0xFFFF);      // source ip
-      mval = mval + (dip>>16);           // dest ip
-      mval = mval + (dip & 0xFFFF);      // dest ip
-      mval = (mval&0xFFFF) + (mval>>16); // add accumulated carrys 
-      mval = mval + (mval>>16);          // add any more carrys
+         mval = mval + TL[0]*2 + ETH_HDR_LEN_100;  // 20 word data header (40bytes), 8bytes UDP header, 20 bytes IPv4 header +  2*TL waveform bytes 
+      mval = mval + 0;                             // identification
+      mval = mval + 0;                             // flags, fragment offset
+      mval = mval + 0x3F11;                        // time to live (63), protocol UPD (17)
+      mval = mval + 0;                             // checksum
+      mval = mval + (sip>>16);                     // source ip
+      mval = mval + (sip & 0xFFFF);                // source ip
+      mval = mval + (dip>>16);                     // dest ip
+      mval = mval + (dip & 0xFFFF);                // dest ip
+      mval = (mval&0xFFFF) + (mval>>16);           // add accumulated carrys 
+      mval = mval + (mval>>16);                    // add any more carrys
       reglo = ~mval;      
-  //    reglo = 0xF66D;
-      mapped[AMZ_EXAFWR] =  AK7_ETH_CHECK_LONG;     // specify   K7's addr:    checksum (LONG)
+      // reglo = 0xF66D;
+      mapped[AMZ_EXAFWR] =  AK7_ETH_CHECK_LONG;    // specify   K7's addr:    checksum (LONG)
       mapped[AMZ_EXDWR]  =  reglo;
-   //  printf("WR Ethernet data checksum FPGA %d (LONG)  = 0x%x\n",k7, reglo & 0xFFFF);
-      //printf("0x410 packet size %d, UDP+IPv4 total length %d bytes, TL (bytes) %d, ETH_HDR_LEN_410 %d \n",TL[0]*2+ETH_HDR_LEN_410+14,TL[0]*2+ETH_HDR_LEN_410, TL[0]*2 ); 
+      // printf("Ethernet data checksum FPGA %d (LONG)  = 0x%x\n",k7, reglo & 0xFFFF);
+      // printf("0x410 packet size %d, UDP+IPv4 total length %d bytes, TL (bytes) %d, ETH_HDR_LEN_410 %d \n",TL[0]*2+ETH_HDR_LEN_410+14,TL[0]*2+ETH_HDR_LEN_410, TL[0]*2 ); 
 
       // event header info (for UDP) 
       mval = 0;
-      mval = mval + (fippiconfig.SLOT_ID<<0);         // slot     // use for K7 0/1
-      mval = mval + (fippiconfig.CRATE_ID<<4);        // crate
-      mval = mval + (P16_HDR_LEN<<8);                 // header length (fixed to 10 32bit words)  
-      mval = mval + (fippiconfig.MODULE_ID<<12);      // module ID
-      mapped[AMZ_EXAFWR] =  AK7_HDR_IDS;              // specify   K7's addr:    HDR_IDS
+      mval = mval + (fippiconfig.SLOT_ID<<0);      // slot     // use for K7 0/1
+      mval = mval + (fippiconfig.CRATE_ID<<4);     // crate
+      mval = mval + (P16_HDR_LEN<<8);              // header length (fixed to 10 32bit words)  
+      mval = mval + (fippiconfig.MODULE_ID<<12);   // module ID
+      mapped[AMZ_EXAFWR] =  AK7_HDR_IDS;           // specify   K7's addr:    HDR_IDS
       mapped[AMZ_EXDWR]  =  mval;        
  
       mval=fippiconfig.UDP_PAUSE; //UDP_PAUSE;
-      mapped[AMZ_EXAFWR] =  AK7_UDP_PAUSE;              // specify   K7's addr:    AK7_UDP_PAUSE
+      mapped[AMZ_EXAFWR] =  AK7_UDP_PAUSE;         // specify   K7's addr:    AK7_UDP_PAUSE
       mapped[AMZ_EXDWR]  =  mval;      
       //if(verbose) printf(" UDP_PAUSE, Ethernet minimum packet separation: %d (x 64ns cycles)\n",mval);    
 
       // set the Ethernet control register with the trace length (for AutoUDP)          
       mval =  ((fippiconfig.CHANNEL_CSRA[0] & (1<<CCSRA_TRACEENA)) >0); // check TraceEna bit   
-      mapped[AMZ_EXAFWR] =  AK7_ETH_CTRL;    // specify   K7's addr:    Ethernet output control register
-      mapped[AMZ_EXDWR]  =  ( (mval<<8) + (TL[0]>>5) );  // specify payload type with/without trace, TL blocks
-      mapped[AMZ_EXAFWR] =  AK7_HOSTCLR;    // specify   K7's addr:    write to clear SDRAM, DEEPFIFO. must be after TL has been defined in AK7_ETH_CTRL
-      mapped[AMZ_EXDWR]  =  mval;  // any write ok
+      mapped[AMZ_EXAFWR] =  AK7_ETH_CTRL;                      // specify   K7's addr:    Ethernet output control register
+      if(long_trace)
+         mapped[AMZ_EXDWR]  =  ( (mval<<8) + (TL[0]>>8) );     // specify payload type with/without trace, 1/8 TL blocks
+      else
+         mapped[AMZ_EXDWR]  =  ( (mval<<8) + (TL[0]>>5) );     // specify payload type with/without trace, TL blocks
+
+      // write to clear SDRAM, DEEPFIFO. must be after TL has been defined in AK7_ETH_CTRL
+      mapped[AMZ_EXAFWR] =  AK7_HOSTCLR;                       // specify   K7's addr:    host initiated clear
+      mapped[AMZ_EXDWR]  =  mval;                              // any write ok
 
       // set the power down timer: when Kintex is not addressed for 64K x 40ns x this number, processing clocks are disabled
       mval=fippiconfig.SLEEP_TIMEOUT; 
-      mapped[AMZ_EXAFWR] =  AK7_SLEEP;              // specify   K7's addr:    AK7_SLEEP
+      mapped[AMZ_EXAFWR] =  AK7_SLEEP;                         // specify   K7's addr:    AK7_SLEEP
       mapped[AMZ_EXDWR]  =  mval;      
  
       // set the RUN_TYPE
       mval=fippiconfig.RUN_TYPE; 
-      mapped[AMZ_EXAFWR] =  AK7_RUNTYPE;              // specify   K7's addr:    AK7_RUNTYPE
+      mapped[AMZ_EXAFWR] =  AK7_RUNTYPE;                       // specify   K7's addr:    AK7_RUNTYPE
       mapped[AMZ_EXDWR]  =  mval; 
   
       // set the USER_PACKET_DATA
       mval=fippiconfig.USER_PACKET_DATA; 
-      mapped[AMZ_EXAFWR] =  AK7_USR_PCK_DATA;              // specify   K7's addr:    AK7_USR_PCK_DATA
+      mapped[AMZ_EXAFWR] =  AK7_USR_PCK_DATA;                  // specify   K7's addr:    AK7_USR_PCK_DATA
+      mapped[AMZ_EXDWR]  =  mval;  
+
+      // set the TTCL Acceptance Window  
+      mval=fippiconfig.TTCL_APPR_WINDOW;
+      mapped[AMZ_EXAFWR] =  AK7_TTCL_APPR_WINDOW;              // specify   K7's addr:    AK7_TTCL_APPR_WINDOW
       mapped[AMZ_EXDWR]  =  mval;  
  
        // ................ Trigger mode setting .............................
 
-      mval=fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7];
-      mval=mval + (fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+1]<<8); 
-      mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB;              // specify   K7's addr:    AK7_GROUPMODE_AB
+      mval=fippiconfig.GROUPMODE_CH[k7*NCHANNELS_PER_K7];
+      mval=mval + (fippiconfig.GROUPMODE_CH[k7*NCHANNELS_PER_K7+1]<<8); 
+      mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB;                  // specify   K7's addr:    AK7_GROUPMODE_AB
       mapped[AMZ_EXDWR]  =  mval;  
       
-      mval=fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+2];
-      mval=mval + (fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+3]<<8); 
-      mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB+1;              // specify   K7's addr:    AK7_GROUPMODE_AB
+      mval=fippiconfig.GROUPMODE_CH[k7*NCHANNELS_PER_K7+2];
+      mval=mval + (fippiconfig.GROUPMODE_CH[k7*NCHANNELS_PER_K7+3]<<8); 
+      mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB+1;                // specify   K7's addr:    AK7_GROUPMODE_AB
       mapped[AMZ_EXDWR]  =  mval;  
 
       if(NCHANNELS_PER_K7>4)
       {
-         mval=fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+4];
-         mval=mval + (fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+5]<<8); 
-         mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB+2;              // specify   K7's addr:    AK7_GROUPMODE_AB
+         mval=fippiconfig.GROUPMODE_CH[k7*NCHANNELS_PER_K7+4];
+         mval=mval + (fippiconfig.GROUPMODE_CH[k7*NCHANNELS_PER_K7+5]<<8); 
+         mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB+2;             // specify   K7's addr:    AK7_GROUPMODE_AB
          mapped[AMZ_EXDWR]  =  mval;  
          
-         mval=fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+6];
-         mval=mval + (fippiconfig.GROUPMODE_FIP[k7*NCHANNELS_PER_K7+7]<<8); 
-         mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB+3;              // specify   K7's addr:    AK7_GROUPMODE_AB
+         mval=fippiconfig.GROUPMODE_CH[k7*NCHANNELS_PER_K7+6];
+         mval=mval + (fippiconfig.GROUPMODE_CH[k7*NCHANNELS_PER_K7+7]<<8); 
+         mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_AB+3;             // specify   K7's addr:    AK7_GROUPMODE_AB
          mapped[AMZ_EXDWR]  =  mval; 
       }
 
-      mval=fippiconfig.GROUPMODE_K7;
+      mval=fippiconfig.GROUPMODE_FIP;
       mval=mval + (fippiconfig.VETO_MODE<<8); 
-      mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_K7;              // specify   K7's addr:    AK7_GROUPMODE_K7
+      mapped[AMZ_EXAFWR] =  AK7_GROUPMODE_FIP;                  // specify   K7's addr:    AK7_GROUPMODE_FIP
       mapped[AMZ_EXDWR]  =  mval; 
 
       mval=fippiconfig.GATE_LENGTH;
       mval=mval + (fippiconfig.DYNODE_LENGTH<<8); 
-      mapped[AMZ_EXAFWR] =  AK7_GATE_LENGTH;              // specify   K7's addr:    AK7_GATE_LENGTH
+      mapped[AMZ_EXAFWR] =  AK7_GATE_LENGTH;                   // specify   K7's addr:    AK7_GATE_LENGTH
       mapped[AMZ_EXDWR]  =  mval; 
 
    
       // - - - - CHANNEL REGISTERS IN K7 - - - - 
       for( ch_k7 = 0; ch_k7 < NCHANNELS_PER_K7 ; ch_k7 ++ )
       {
-         ch = ch_k7+k7*NCHANNELS_PER_K7;            // pre-compute channel number for data source  
-         mapped[AMZ_EXAFWR] = AK7_PAGE;         // specify   K7's addr:    PAGE register
-         mapped[AMZ_EXDWR]  = PAGE_CHN + ch_k7;      // PAGE 0: system, page 0x10n = channel n 
+         ch = ch_k7+k7*NCHANNELS_PER_K7;                    // pre-compute channel number for data source  
+         mapped[AMZ_EXAFWR] = AK7_PAGE;                     // specify   K7's addr:    PAGE register
+         mapped[AMZ_EXDWR]  = PAGE_CHN + ch_k7;             // PAGE 0: system, page 0x10n = channel n 
          
          // ......... P16 Reg 0  .......................            
          
@@ -1217,7 +1258,7 @@ int main(void) {
          reglo = 1;     // halt bit =1
          reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_POLARITY,      FiPPI_INVRT   );    
          if(ch_k7==2)  {
-            if( ((revsn & PNXL_DB_VARIANT_MASK)==PNXL_DB01_14_125 ) |
+            if( ((revsn & PNXL_DB_VARIANT_MASK)==PNXL_DB01_14_125 ) |            // DB01 channel 2 comes out inverted, compesate here
                 ((revsn & PNXL_DB_VARIANT_MASK)==PNXL_DB01_14_75  ) )
             {
                reglo = reglo ^ (1<<FiPPI_INVRT); 
@@ -1226,27 +1267,27 @@ int main(void) {
          }
          reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_VETOENA,       FiPPI_VETOENA   );     
          reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_EXTTRIGSEL,    FiPPI_EXTTRIGSEL   );     
-         reglo = reglo + (SFR<<4);                        //  Store SlowFilterRange in bits [6:4] 
+         reglo = reglo + (SFR<<4);                                               //  Store SlowFilterRange in bits [6:4] 
          mval = 129-SL[ch];
          //printf("SL: %d, 129-SL: %d,  ",SL[ch], mval);
-         reglo = reglo + (mval<<7);                       //  SlowLength in bits [13:7]
+         reglo = reglo + (mval<<7);                                              //  SlowLength in bits [13:7]
          mval = 129-SL[ch]-SG[ch];
          // printf("SL+SG: %d, 129-SL-SG: %d \n",SL[ch]+SG[ch], mval);
-         reglo = reglo + (mval<<14);                //  SlowLength + SlowGap in bits [20:14]
+         reglo = reglo + (mval<<14);                                             //  SlowLength + SlowGap in bits [20:14]
          reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_CHANTRIGSEL,   FiPPI_CHANTRIGSEL   );     
          reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_SYNCDATAACQ,   FiPPI_SYNCDATAACQ   );     
          reglo = reglo + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_GROUPTRIGSEL,  FiPPI_GROUPTRIGSEL   );    
          mval = 129-FL[ch];
          // printf("FL: %d, 129-FL: %d,  ",FL[ch], mval);
-         reglo = reglo +( mval<<25) ;               // 128 - (FastLength - 1) in bits [31:25] 
+         reglo = reglo +( mval<<25) ;                                            // 128 - (FastLength - 1) in bits [31:25] 
          SAVER0[ch] = reglo;
           
          reghi = 0;
-         reghi = 129 - FL[ch] - FG[ch];                          // 128 - (FastLength + FastGap - 1)
+         reghi = 129 - FL[ch] - FG[ch];                                          // 128 - (FastLength + FastGap - 1)
          // printf("FL+FG: %d, 129-SL-SG: %d \n",FL[ch]+FG[ch], reghi);
-         reghi = reghi & 0x7F;                                 // Keep only bits [6:0]
-         reghi = reghi + (TH[ch]<<7);                             // Threshold in [22:7]   
-         reghi = reghi + ( (64 - fippiconfig.CFD_DELAY[ch]) <<23 );        //  CFDDelay in [28:23]       // in samples!
+         reghi = reghi & 0x7F;                                                   // Keep only bits [6:0]
+         reghi = reghi + (TH[ch]<<7);                                            // Threshold in [22:7]   
+         reghi = reghi + ( (64 - fippiconfig.CFD_DELAY[ch]) <<23 );              //  CFDDelay in [28:23]       // in samples!
          reghi = reghi + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_CHANVETOSEL,   FiPPI_CHANVETOSEL);     
          reghi = reghi + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_MODVETOSEL,    FiPPI_MODVETOSEL );     
          reghi = reghi + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_ENARELAY,      FiPPI_ENARELAY   );              
@@ -1266,11 +1307,11 @@ int main(void) {
          // ......... P16 Reg 1  .......................    
          
          // package
-         reglo = 129 - SG[ch];                                 //  SlowGap in bits [6:0]
+         reglo = 129 - SG[ch];                                                   //  SlowGap in bits [6:0]
          mval = (2*SL[ch]+SG[ch]+1);
-         reglo = reglo + (mval<<7);                 // Store RBDEL_SF = (SlowLength + SlowGap + SlowLength + 1) in bits [18:7] of Fipreg1 lo
+         reglo = reglo + (mval<<7);                                              // Store RBDEL_SF = (SlowLength + SlowGap + SlowLength + 1) in bits [18:7] of Fipreg1 lo
          mval =  8192 - ((SL[ch]+SG[ch])<<SFR); 
-         reglo = reglo + (mval <<19); // Peaksep= SL+SG; store 8192 - PeakSep * 2^SlowFilterRange  in bits [31:19] of Fipreg1 lo
+         reglo = reglo + (mval <<19);                                            // Peaksep= SL+SG; store 8192 - PeakSep * 2^SlowFilterRange  in bits [31:19] of Fipreg1 lo
          
          if(SFR==1) PSAM = SL[ch]+SG[ch] -3;
          if(SFR==2) PSAM = SL[ch]+SG[ch] -2;
@@ -1279,10 +1320,10 @@ int main(void) {
          if(SFR==5) PSAM = SL[ch]+SG[ch] -0;
          if(SFR==6) PSAM = SL[ch]+SG[ch] +1;
          reghi = 0;
-         reghi = 8192 - (PSAM<<SFR);                             // Peaksample = SL+SG - a bit ; store 8192 - Peaksample * 2^SlowFilterRange  in bits [44:32] of Fipreg1 
+         reghi = 8192 - (PSAM<<SFR);                                             // Peaksample = SL+SG - a bit ; store 8192 - Peaksample * 2^SlowFilterRange  in bits [44:32] of Fipreg1 
          mval = 2*FL[ch]+FG[ch]+2;
-         reghi = reghi + ( mval<<13 );                // Store RBDEL_TF = (FastLength + FastGap + FastLength + 2) in bits [56:45] of Fipreg1
-         reghi = reghi + ( fippiconfig.CFD_SCALE[ch] <<25 );        //  Store CFDScale[3:0] in bits [60:57] of Fipreg1
+         reghi = reghi + ( mval<<13 );                                           // Store RBDEL_TF = (FastLength + FastGap + FastLength + 2) in bits [56:45] of Fipreg1
+         reghi = reghi + ( fippiconfig.CFD_SCALE[ch] <<25 );                     //  Store CFDScale[3:0] in bits [60:57] of Fipreg1
          reghi = reghi + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_GOOD,            FiPPI_GOOD           );     
          reghi = reghi + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_PILEUPCTRL,      FiPPI_PILEUPCTRL     );     
          reghi = reghi + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_INVERSEPILEUP,   FiPPI_INVERSEPILEUP  );     
@@ -1301,7 +1342,7 @@ int main(void) {
          // ......... P16 Reg 2  .......................    
          
          // package
-         reglo = 4096 - (int)(fippiconfig.CHANTRIG_STRETCH[ch]*FILTER_CLOCK_MHZ);               //  ChanTrigStretch goes into [11:0] of FipReg2   // in us
+         reglo = 4096 - (int)(fippiconfig.CHANTRIG_STRETCH[ch]*FILTER_CLOCK_MHZ);                                  //  ChanTrigStretch goes into [11:0] of FipReg2   // in us
          reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_FTRIGSEL,   SelExtFastTrig   );    
          if(traceena) reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_TRACEENA,    FiPPI_TRACEENA   );   // add trace enable bit only in run types with trace capture  
          reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_QDCENA,       FiPPI_QDCENA   );  
@@ -1312,12 +1353,14 @@ int main(void) {
          reglo = reglo + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_RBADDIS,      FiPPI_RBADDIS   );     
 
          mval = 4096 - (int)(fippiconfig.VETO_STRETCH[ch]*FILTER_CLOCK_MHZ);
-         reglo = reglo + (mval <<20);       //Store VetoStretch in bits [31:20] of Fipreg2   // in us
+         reglo = reglo + (mval <<20);                                                                             // Store VetoStretch in bits [31:20] of Fipreg2   // in us
          
-         reghi = ch & 0xF;                                                                           // channel ID in bits [3:0]     ([35:32] in 64 bit)  
+         reghi = ch & 0xF;                                                                                        // channel ID in bits [3:0]     ([35:32] in 64 bit)  
          reghi = reghi + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_LOCAl_ENERGY,  FiPPI_LOCAl_ENERGY   );    
-         reghi = reghi + ( (4096 - (int)(fippiconfig.FASTTRIG_BACKLEN[ch]*FILTER_CLOCK_MHZ)) <<8);   //  FastTrigBackLen goes into [19:8] ([51:40] in 64 bit)   // in us
-         reghi = reghi + ( (4096 - (int)(fippiconfig.EXTTRIG_STRETCH[ch]*FILTER_CLOCK_MHZ)) <<20);   //  ExtTrigStretch goes into [31:20] ([63:52] in 64 bit)   // in us
+         reghi = reghi + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_SIM_ADC,       FiPPI_SIM_ADC   );    
+         reghi = reghi + setbit(fippiconfig.CHANNEL_CSRC[ch],CCSRC_GATE_ADC,      FiPPI_GATE_ADC   );    
+         reghi = reghi + ( (4096 - (int)(fippiconfig.FASTTRIG_BACKLEN[ch]*FILTER_CLOCK_MHZ)) <<8);                //  FastTrigBackLen goes into [19:8] ([51:40] in 64 bit)   // in us
+         reghi = reghi + ( (4096 - (int)(fippiconfig.EXTTRIG_STRETCH[ch]*FILTER_CLOCK_MHZ)) <<20);                //  ExtTrigStretch goes into [31:20] ([63:52] in 64 bit)   // in us
          
          // now write 
          mapped[AMZ_EXAFWR] = AK7_P16REG02+0;                          // write to  k7's addr to select channel's register N    
@@ -1333,18 +1376,18 @@ int main(void) {
          // ......... P16 Reg 5  .......................    
          
          // package
-         reglo = (int)(fippiconfig.FTRIGOUT_DELAY[ch]*FILTER_CLOCK_MHZ);        //  FtrigoutDelay goes into [8:0] of FipReg5             // in us                                                                                                            
-         reghi = (int)(fippiconfig.EXTERN_DELAYLEN[ch]*FILTER_CLOCK_MHZ);       //Store EXTERN_DELAYLEN in bits [8:0] of FipReg5 hi      // in us      
-         /*   bogus trace delay computation from C code?
-         mval = SL[ch]+SG[ch];                                            // psep       TODO: check trace related delays. 
-         mval = (mval-1) << SFR;                                        // trigger delay
-         pafl = (mval>> SFR) + TD[ch];                                     // paf length   // check units!
-         mval = pafl - mval;                                           //delay from DSP computation
+         reglo = (int)(fippiconfig.FTRIGOUT_DELAY[ch]*FILTER_CLOCK_MHZ);         //  FtrigoutDelay goes into [8:0] of FipReg5             // in us                                                                                                            
+         reghi = (int)(fippiconfig.EXTERN_DELAYLEN[ch]*FILTER_CLOCK_MHZ);        //Store EXTERN_DELAYLEN in bits [8:0] of FipReg5 hi      // in us      
+         /*   bogus trace delay computation from P16 C code?
+         mval = SL[ch]+SG[ch];                                                   // psep       TODO: check trace related delays. 
+         mval = (mval-1) << SFR;                                                 // trigger delay
+         pafl = (mval>> SFR) + TD[ch];                                           // paf length   // check units!
+         mval = pafl - mval;                                                     //delay from DSP computation
          if( (fippiconfig.CHANNEL_CSRA[ch]  & 0x0400) >0 )  //(1<<CCSRA_CFDMODE) >0  )      
-         mval = mval + FL[ch] + FG[ch];                                // add CFD delay if necessary
+         mval = mval + FL[ch] + FG[ch];                                          // add CFD delay if necessary
          */ 
          mval = TD[ch];
-         reghi = reghi +  (mval<<9);                                      // trace delay (Capture_FIFOdelaylen )
+         reghi = reghi +  (mval<<9);                                             // trace delay (Capture_FIFOdelaylen )
          
          // now write 
          mapped[AMZ_EXAFWR] = AK7_P16REG05+0;                          // write to  k7's addr to select channel's register N        
@@ -1363,13 +1406,13 @@ int main(void) {
          {
             sval = 6 + 64;    // QDC delay offset: 64 for FPGA logic starting at -64, 6 for register delay custom delay for RS
          } else {
-            sval = 4 ;    // QDC delay offset: 4 for register delay
+            sval = 4 ;        // QDC delay offset: 4 for register delay
          }
          if(  (fippiconfig.CHANNEL_CSRA[ch] & (1<<CCSRA_QDCENA)) >0 ) 
          {    
             // P16 style QDC
             // TODO: this will require variant switch for other ADC rates
-            mval = 0x7FFF - (int)floorf(fippiconfig.QDCLen0[ch]/2) + 1 ;       // FPGA expects 0x7FFF for a length of 1 x 2 samples per cycle
+            mval = 0x7FFF - (int)floorf(fippiconfig.QDCLen0[ch]/2) + 1 ;         // FPGA expects 0x7FFF for a length of 1 x 2 samples per cycle
             reglo = mval;
             mval = 0x7FFF - (int)floorf(fippiconfig.QDCLen1[ch]/2) + 1 ;
             reglo = reglo + (mval<<16);
@@ -1387,40 +1430,41 @@ int main(void) {
                 ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) |
                 ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) |
                 ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)    )
+                // TODO: develop 500 MHz PSA
             {
-            // PN style PSA
-               reglo = (fippiconfig.QDCLen0[ch]>>1)+1;                              //  FPGA expects "len/2 + 1" for effective "len" 
+               // PN style PSA
+               reglo = (fippiconfig.QDCLen0[ch]>>1)+1;                                          //  FPGA expects "len/2 + 1" for effective "len" 
                mval  =  fippiconfig.QDCLen0[ch] + sval + (int)floorf(fippiconfig.QDCDel0[ch]);  //  FPGA expects total length + delay (=end), add 64 as FPGA starts at -64
                reglo = reglo + (mval<<5);
-               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reglo = reglo + (1<<15);  // set "divide by extra 8" bit  
+               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reglo = reglo + (1<<15);           // set "divide by extra 8" bit  
 
-               mval  = (fippiconfig.QDCLen1[ch]>>1)+1;                              //  FPGA expects "len/2 + 1" for effective "len" 
+               mval  = (fippiconfig.QDCLen1[ch]>>1)+1;                                          //  FPGA expects "len/2 + 1" for effective "len" 
                reglo = reglo + (mval<<16);
                mval  =  fippiconfig.QDCLen1[ch] + sval + (int)floorf(fippiconfig.QDCDel1[ch]);  //  FPGA expects total length + delay (=end),
                reglo = reglo + (mval<<21);
-               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reglo = reglo + (1<<31);  // set "divide by extra 8" bit  
+               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reglo = reglo + (1<<31);           // set "divide by extra 8" bit  
 
-               reghi = (fippiconfig.QDCLen2[ch]>>1)+1;                              //  FPGA expects "len/2 + 1" for effective "len" 
+               reghi = (fippiconfig.QDCLen2[ch]>>1)+1;                                          //  FPGA expects "len/2 + 1" for effective "len" 
                mval  =  fippiconfig.QDCLen2[ch] + sval + (int)floorf(fippiconfig.QDCDel2[ch]);  //  FPGA expects total length + delay (=end), 
                reghi = reghi + (mval<<5);
-               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reghi = reghi + (1<<15);  // set "divide by extra 8" bit  
+               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reghi = reghi + (1<<15);           // set "divide by extra 8" bit  
 
-               mval  = (fippiconfig.QDCLen3[ch]>>1)+1;                              //  FPGA expects "len/2 + 1" for effective "len" 
+               mval  = (fippiconfig.QDCLen3[ch]>>1)+1;                                          //  FPGA expects "len/2 + 1" for effective "len" 
                reghi = reghi + (mval<<16);
                mval  =  fippiconfig.QDCLen3[ch] + sval + (int)floorf(fippiconfig.QDCDel3[ch]);  //  FPGA expects total length + delay (=end), 
                reghi = reghi + (mval<<21);
-               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reghi = reghi + (1<<31);  // set "divide by extra 8" bit     
+               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reghi = reghi + (1<<31);           // set "divide by extra 8" bit     
             } // end revsn
 
             if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_125)
             {
             // P4e style PSA
             // to be updated for Len+Del variables
-               reglo = (fippiconfig.QDCLen0[ch]>>2)+1;                           //  L0 FPGA expects "len/4 + 1" for effective "len" 
-               reghi = fippiconfig.QDCLen0[ch] + 4 + fippiconfig.QDCLen2[ch];    //  D0 FPGA expects total length + delay (=end)
+               reglo = (fippiconfig.QDCLen0[ch]>>2)+1;                                          //  L0 FPGA expects "len/4 + 1" for effective "len" 
+               reghi = fippiconfig.QDCLen0[ch] + 4 + fippiconfig.QDCLen2[ch];                   //  D0 FPGA expects total length + delay (=end)
                mval  = (fippiconfig.QDCLen1[ch]>>2)+1;
-               reglo = reglo + (mval<<16);                                       //  L1 FPGA expects "len/4 + 1" for effective "len"                                                                                
-               mval  = fippiconfig.QDCLen1[ch] +4 + fippiconfig.QDCLen3[ch];     //  D1 FPGA expects total length + delay (=end)
+               reglo = reglo + (mval<<16);                                                      //  L1 FPGA expects "len/4 + 1" for effective "len"                                                                                
+               mval  = fippiconfig.QDCLen1[ch] +4 + fippiconfig.QDCLen3[ch];                    //  D1 FPGA expects total length + delay (=end)
                reghi = reghi + (mval<<16);     
             } // end revsn
          }  // end QDC enable
@@ -1441,7 +1485,7 @@ int main(void) {
           if(  (fippiconfig.CHANNEL_CSRA[ch] & (1<<CCSRA_QDCENA)) >0 ) {    
             // P16 style QDC
             // TODO: this will require variant switch for other ADC rates
-            mval = 0x7FFF - (int)floorf(fippiconfig.QDCLen4[ch]/2) + 1 ;       // FPGA expects 0x7FFF for a length of 1 x 2 samples per cycle
+            mval = 0x7FFF - (int)floorf(fippiconfig.QDCLen4[ch]/2) + 1 ;         // FPGA expects 0x7FFF for a length of 1 x 2 samples per cycle
             reglo = mval;
             mval = 0x7FFF - (int)floorf(fippiconfig.QDCLen5[ch]/2) + 1 ;
             reglo = reglo + (mval<<16);
@@ -1460,27 +1504,27 @@ int main(void) {
                 ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)    )
             {
             // PN style PSA
-               reglo = (fippiconfig.QDCLen4[ch]>>1)+1;                              //  FPGA expects "len/2 + 1" for effective "len" 
+               reglo = (fippiconfig.QDCLen4[ch]>>1)+1;                                          //  FPGA expects "len/2 + 1" for effective "len" 
                mval  =  fippiconfig.QDCLen4[ch] + sval + (int)floorf(fippiconfig.QDCDel4[ch]);  //  FPGA expects total length + delay (=end),
                reglo = reglo + (mval<<5);
-               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reglo = reglo + (1<<15);  // set "divide by extra 8" bit  
+               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reglo = reglo + (1<<15);           // set "divide by extra 8" bit  
 
-               mval  = (fippiconfig.QDCLen5[ch]>>1)+1;                              //  FPGA expects "len/2 + 1" for effective "len" 
+               mval  = (fippiconfig.QDCLen5[ch]>>1)+1;                                          //  FPGA expects "len/2 + 1" for effective "len" 
                reglo = reglo + (mval<<16);
                mval  =  fippiconfig.QDCLen5[ch] + sval + (int)floorf(fippiconfig.QDCDel5[ch]);  //  FPGA expects total length + delay (=end),
                reglo = reglo + (mval<<21);
-               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reglo = reglo + (1<<31);  // set "divide by extra 8" bit  
+               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reglo = reglo + (1<<31);           // set "divide by extra 8" bit  
 
-               reghi = (fippiconfig.QDCLen6[ch]>>1)+1;                              //  FPGA expects "len/2 + 1" for effective "len" 
+               reghi = (fippiconfig.QDCLen6[ch]>>1)+1;                                          //  FPGA expects "len/2 + 1" for effective "len" 
                mval  =  fippiconfig.QDCLen6[ch] + sval + (int)floorf(fippiconfig.QDCDel6[ch]);  //  FPGA expects total length + delay (=end),
                reghi = reghi + (mval<<5);
-               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reghi = reghi + (1<<15);  // set "divide by extra 8" bit  
+               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reghi = reghi + (1<<15);           // set "divide by extra 8" bit  
 
-               mval  = (fippiconfig.QDCLen7[ch]>>1)+1;                              //  FPGA expects "len/2 + 1" for effective "len" 
+               mval  = (fippiconfig.QDCLen7[ch]>>1)+1;                                          //  FPGA expects "len/2 + 1" for effective "len" 
                reghi = reghi + (mval<<16);
                mval  =  fippiconfig.QDCLen7[ch] + sval + (int)floorf(fippiconfig.QDCDel7[ch]);  //  FPGA expects total length + delay (=end), 
                reghi = reghi + (mval<<21);
-               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reghi = reghi + (1<<31);  // set "divide by extra 8" bit     
+               if( fippiconfig.QDC_DIV[ch] == VAL1_QDC_DIV)  reghi = reghi + (1<<31);           // set "divide by extra 8" bit     
             } // end revsn
 
          }  // end QDC enable
@@ -1498,8 +1542,8 @@ int main(void) {
          
          // ......... P16 Reg 13  .......................    
          
-         reglo = fippiconfig.CFD_THRESHOLD[ch];                //  CFD Thresh       // in steps
-         reglo = reglo + (fippiconfig.PSA_THRESHOLD[ch]<<16);  //  PSA Thresh       // in steps
+         reglo = fippiconfig.CFD_THRESHOLD[ch];                                  //  CFD Thresh       // in steps
+         reglo = reglo + (fippiconfig.PSA_THRESHOLD[ch]<<16);                    //  PSA Thresh       // in steps
          
          // now write 
          mapped[AMZ_EXAFWR] = AK7_P16REG13+0;              // write to  k7's addr to select channel's register N
@@ -1510,22 +1554,22 @@ int main(void) {
          
          // ......... P16 Reg 17 (Info)  .......................    
          
-         reglo = ch;                                      // channel
-         reglo = reglo + (fippiconfig.SLOT_ID<<4);           // slot     // use for K7 0/1
-         reglo = reglo + (fippiconfig.CRATE_ID<<8);          // crate
-         reglo = reglo + (fippiconfig.MODULE_ID<<12);        // module type 
-                                                         // [15:20] reserved for mod address (always 0?)                                           
+         reglo = ch;                                       // channel
+         reglo = reglo + (fippiconfig.SLOT_ID<<4);         // slot     // use for K7 0/1
+         reglo = reglo + (fippiconfig.CRATE_ID<<8);        // crate
+         reglo = reglo + (fippiconfig.MODULE_ID<<12);      // module type 
+                                                           // [15:20] reserved for mod address (always 0?)                                           
          reghi = TL[ch];                 
          
          // now write 
-         mapped[AMZ_EXAFWR] = AK7_P16REG17+0;               // write to  k7's addr to select channel's register N      
-         mapped[AMZ_EXDWR]  = reglo & 0xFFFF;               // write lower 16 bit                                      
-         mapped[AMZ_EXAFWR] = AK7_P16REG17+1;               // write to  k7's addr to select channel's register N+1    
-         mapped[AMZ_EXDWR]  = reglo >> 16;                  // write next 16 bit                                       
-         mapped[AMZ_EXAFWR] = AK7_P16REG17+2;               // write to  k7's addr to select channel's register N+2    
-         mapped[AMZ_EXDWR]  = reghi & 0xFFFF;               // write next 16 bit                                       
-         mapped[AMZ_EXAFWR] = AK7_P16REG17+3;               // write to  k7's addr to select channel's register N+3    
-         mapped[AMZ_EXDWR]  = reghi >> 16;                  // write highest 16 bit          
+         mapped[AMZ_EXAFWR] = AK7_P16REG17+0;              // write to  k7's addr to select channel's register N      
+         mapped[AMZ_EXDWR]  = reglo & 0xFFFF;              // write lower 16 bit                                      
+         mapped[AMZ_EXAFWR] = AK7_P16REG17+1;              // write to  k7's addr to select channel's register N+1    
+         mapped[AMZ_EXDWR]  = reglo >> 16;                 // write next 16 bit                                       
+         mapped[AMZ_EXAFWR] = AK7_P16REG17+2;              // write to  k7's addr to select channel's register N+2    
+         mapped[AMZ_EXDWR]  = reghi & 0xFFFF;              // write next 16 bit                                       
+         mapped[AMZ_EXAFWR] = AK7_P16REG17+3;              // write to  k7's addr to select channel's register N+3    
+         mapped[AMZ_EXDWR]  = reghi >> 16;                 // write highest 16 bit          
          
          
         // ......... Ecomp Regs  ....................... 
@@ -1541,11 +1585,11 @@ int main(void) {
          Cg  = 1.0-q;
          C1  = (1.0-q)/(1.0-elm);
          
-         C0 = C0 * fippiconfig.DIG_GAIN[ch];   // multiply with digital gain 
+         C0 = C0 * fippiconfig.DIG_GAIN[ch];                // multiply with digital gain 
          Cg = Cg * fippiconfig.DIG_GAIN[ch];
          C1 = C1 * fippiconfig.DIG_GAIN[ch];
    
-         C0 = C0 * 262144 * (-1.0);    // upshift (*2^18) to have sufficient digits for integer representation [and make positive for FPGA]
+         C0 = C0 * 262144 * (-1.0);                         // upshift (*2^18) to have sufficient digits for integer representation [and make positive for FPGA]
          Cg = Cg * 262144; //67108864;
          C1 = C1 * 262144;
 
@@ -1560,25 +1604,25 @@ int main(void) {
             mval = 65536-fippiconfig.BLAVG[ch];
          reglo = (int)floor(C0) & 0xFFFFFF;
          reglo = reglo + (mval << 24);
-         mapped[AMZ_EXAFWR] = AK7_P16REG_C0+0;               // write to  k7's addr to select channel's register N      
-         mapped[AMZ_EXDWR]  = reglo & 0xFFFF;                // write lower 16 bit                                      
-         mapped[AMZ_EXAFWR] = AK7_P16REG_C0+1;               // write to  k7's addr to select channel's register N+1    
-         mapped[AMZ_EXDWR]  = reglo >> 16;                   // write next 16 bit                                       
+         mapped[AMZ_EXAFWR] = AK7_P16REG_C0+0;              // write to  k7's addr to select channel's register N      
+         mapped[AMZ_EXDWR]  = reglo & 0xFFFF;               // write lower 16 bit                                      
+         mapped[AMZ_EXAFWR] = AK7_P16REG_C0+1;              // write to  k7's addr to select channel's register N+1    
+         mapped[AMZ_EXDWR]  = reglo >> 16;                  // write next 16 bit                                       
    
          reglo = (int)floor(Cg);
-         mapped[AMZ_EXAFWR] = AK7_P16REG_CG+0;               // write to  k7's addr to select channel's register N      
-         mapped[AMZ_EXDWR]  = reglo & 0xFFFF;                // write lower 16 bit                                      
-         mapped[AMZ_EXAFWR] = AK7_P16REG_CG+1;               // write to  k7's addr to select channel's register N+1    
-         mapped[AMZ_EXDWR]  = reglo >> 16;                   // write next 16 bit                                       
+         mapped[AMZ_EXAFWR] = AK7_P16REG_CG+0;              // write to  k7's addr to select channel's register N      
+         mapped[AMZ_EXDWR]  = reglo & 0xFFFF;               // write lower 16 bit                                      
+         mapped[AMZ_EXAFWR] = AK7_P16REG_CG+1;              // write to  k7's addr to select channel's register N+1    
+         mapped[AMZ_EXDWR]  = reglo >> 16;                  // write next 16 bit                                       
    
          // C0 reg includes BLcut
          mval = fippiconfig.BLCUT[ch]>>2;
          reglo = (int)floor(C1) & 0xFFFFFF;
          reglo = reglo + (mval << 24);
-         mapped[AMZ_EXAFWR] = AK7_P16REG_C1+0;               // write to  k7's addr to select channel's register N      
-         mapped[AMZ_EXDWR]  = reglo & 0xFFFF;                // write lower 16 bit                                      
-         mapped[AMZ_EXAFWR] = AK7_P16REG_C1+1;               // write to  k7's addr to select channel's register N+1    
-         mapped[AMZ_EXDWR]  = reglo >> 16;                   // write next 16 bit                                       
+         mapped[AMZ_EXAFWR] = AK7_P16REG_C1+0;              // write to  k7's addr to select channel's register N      
+         mapped[AMZ_EXDWR]  = reglo & 0xFFFF;               // write lower 16 bit                                      
+         mapped[AMZ_EXAFWR] = AK7_P16REG_C1+1;              // write to  k7's addr to select channel's register N+1    
+         mapped[AMZ_EXDWR]  = reglo >> 16;                  // write next 16 bit                                       
 
          // ......... E limit Regs  ....................... 
 
@@ -1600,7 +1644,7 @@ int main(void) {
 
 
 
-   // --------------------------- DACs -----------------------------------
+   // ******************** Offset DACs ****************************************
    // DACs are all controlled by MZ controller
 
 
@@ -1609,8 +1653,9 @@ int main(void) {
 
    if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_75)  |
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_125) |
-       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) |      
-       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)    )
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) |
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) |
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)    )
    {
 
        for(ch=0;ch<N_K7_FPGAS*NCHANNELS_PER_K7_DB01;ch++)
@@ -1663,8 +1708,11 @@ int main(void) {
 
 
 
-   // --------------------------- Gains ----------------------------------
+   // ******************** Gains ****************************************
 
+   // ------------------ define gain bits for I2C write below, first DB -------------------------
+
+   // DB08
    // DB08 has 2 gains, 4 channels (but addressed as 2-5) Applied via I2C specific to each DB; 
    // Two opamps can be enabled with SW0 (gain 2) and SW1 (gain 5)
    // use 2.4 and 5.4 for easier compatibility to DB01
@@ -1689,8 +1737,9 @@ int main(void) {
          15       reserved (GOE)         unused
          
          =>  unsigned int sw0bit08[NCHANNELS_PER_K7_DB01] = {6, 11, 4, 0};     // these arrays encode the mapping of gain bits to I2C signals
-             unsigned int sw1bit08[NCHANNELS_PER_K7_DB01] = {8, 2, 5, 10};
+             unsigned int sw1bit08[NCHANNELS_PER_K7_DB01] = {8,  2, 5,10};
              unsigned int gnbit08[NCHANNELS_PER_K7_DB01]  = {9, 12, 1, 3};     // always off
+             (defined above)
        */
 
    if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) )  {
@@ -1717,11 +1766,12 @@ int main(void) {
    } //end DB08
 
 
+   // DB06
    // DB06 has 2 gains, 4 channels. Applied via I2C specific to each DB; 
    // Two opamps can be enabled with SW0 (gain 2) and SW1 (gain 5)
    // use 2.4 and 5.4 for easier compatibility to DB01
 
-         /* gain bit map for PXdesk+DB06
+         /* gain bit map for PXdesk+DB06 or DB10
         I2C bit   PXdesk DB signal      DB06 gain
          0        IO_DB_5                SW0_A (enable low)
          1        Gain_C                 unused
@@ -1746,8 +1796,9 @@ int main(void) {
        */
 
    if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) || 
-       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)  )  {
-      // check if gains are valied for ALL channels
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) || 
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)  )  {
+      // check if gains are valid for ALL channels
       for( ch = 0; ch < NCHANNELS_PRESENT; ch ++ )
       {
            if( !( (fippiconfig.ANALOG_GAIN[ch] == DB01_GAIN1)  ||
@@ -1773,6 +1824,7 @@ int main(void) {
 
    // DB02 has no gains, just ignore
 
+   // DB01
    // DB01 has 8 gains. Applied via I2C specific to each DB
    // no limits for DIG_GAIN
     /*     (SGA = SW1/SW0/relay)	            gain
@@ -1805,9 +1857,10 @@ int main(void) {
          14       unused                 unused
          15       reserved (GOE)         unused
          
-         =>  unsigned int sw0bit01[NCHANNELS_PER_K7_DB01] = {6, 11, 4, 0};       // these arrays encode the mapping of gain bits to I2C signals
-             unsigned int sw1bit01[NCHANNELS_PER_K7_DB01] = {8, 2, 5, 10};
-             unsigned int gnbit01[NCHANNELS_PER_K7_DB01]  = {9, 12, 1, 3};
+         =>  unsigned int sw0bit01[NCHANNELS_PER_K7_DB01] = {6, 11, 4,  0};       // these arrays encode the mapping of gain bits to I2C signals
+             unsigned int sw1bit01[NCHANNELS_PER_K7_DB01] = {8,  2, 5, 10};
+             unsigned int gnbit01[NCHANNELS_PER_K7_DB01]  = {9, 12, 1,  3};
+             (defined above)
        */
    
    if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_125) | ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_75) )  {
@@ -1852,29 +1905,33 @@ int main(void) {
 
    } //end DB01
 
-   // ............ program gain bits. Applies to DB01 and DB06; DB02 and DB04 ignore this. ................
+   // ------------------ program gain bits as defined above, first DB  ------------------ 
+   // Applies to DB01, DB06, DB08, DB10; DB02 and DB04 ignore this.
 
-   mapped[AMZ_DEVICESEL] = CS_MZ;	  // select MZ controller
-   mapped[AAUXCTRL] = I2C_SELDB0;	  // select bit 5 -> DB0 I2C         // XXXXXX K7 #1 XXXXXXXXXXXX
+   mapped[AMZ_DEVICESEL] = CS_MZ;	     // select MZ controller
+   mapped[AAUXCTRL] = I2C_SELDB0;	     // select bit 5 -> DB0 I2C         // XXXXXX K7 #1 XXXXXXXXXXXX
 
-   byte2array(I2CW_PFC_LOW,i2caddr);    //PCF chip for first 8 bits  
+   byte2array(I2CW_PFC_LOW,i2caddr);     // PCF chip for first 8 bits  
    for( k = 0; k <8; k++ )     
    {
       i2cdata[k] = i2cgain[k];
    }
    I2Csend3bytes(mapped, i2caddr, i2cdata, i2cdata); 
 
-   byte2array(I2CW_PFC_HIGH,i2caddr);    //PCF chip for 2nd 8 bits 
+   byte2array(I2CW_PFC_HIGH,i2caddr);    // PCF chip for 2nd 8 bits 
    for( k = 0; k <8; k++ )     
    {
       i2cdata[k] = i2cgain[k+8];
    }
-   i2cdata[7] = 1;   // GOE bit
+   i2cdata[7] = 1;                       // GOE bit
    I2Csend3bytes(mapped, i2caddr, i2cdata, i2cdata); 
 
-   // ----------- done with first half of channels  ---------------------- 
+   // ----------------- done with first half of channels  ------------------------------------- 
+   // -----------------------------------------------------------------------------------------
+   // ------------------ define gain bits for I2C write below, second DB ----------------------
 
-   //  set the bits for 4 MORE  channels for DB08  (addresses as ch 10-13)
+   // DB08
+   //  set the bits for 4 MORE  channels for DB08  (addressed as ch 10-13)
    if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) ) {
       for( ch = 10; ch < NCHANNELS_PER_K7_DB01+10; ch ++ )          // XXXXXX K7 #1 XXXXXXXXXXXX
       {
@@ -1886,7 +1943,8 @@ int main(void) {
 
    //  set the bits for 4 MORE  channels for DB06 
    if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) || 
-       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)  )  {
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) ||
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)  )  {
       for( ch = NCHANNELS_PER_K7_DB01; ch < 2*NCHANNELS_PER_K7_DB01; ch ++ )          // XXXXXX K7 #1 XXXXXXXXXXXX
       {
          ch_k7 = ch - NCHANNELS_PER_K7_DB01;                                         
@@ -1915,7 +1973,8 @@ int main(void) {
       }    // end for
    } //end DB01
 
-   // ............ program gain bits. Applies to DB01 and DB06; DB02 and DB04 ignore this. ................
+   // ------------------ program gain bits, second DB ------------------
+   // Applies to DB01 and DB06; DB02 and DB04 ignore this. 
    
    // I2C write for 4 channels
     mapped[AMZ_DEVICESEL] = CS_MZ;	  // select MZ controller
@@ -1936,19 +1995,19 @@ int main(void) {
      i2cdata[7] = 1;   // GOE bit
     I2Csend3bytes(mapped, i2caddr, i2cdata, i2cdata); 
     
-    // ----------- done with second half of channels  ---------------------- 
+    // ---------------------- done with second half of channels  ------------------------------ 
+    // -----------------------------------------------------------------------------------------
 
 
 
-
-    // --------------------------- finish up ----------------------------------
+    // **************************** finish up *********************************
 
    // restart/initialize filters 
-   usleep(100);      // wait for filter FIFOs to clear, really should be longest SL+SG
+   usleep(100);                                       // wait for filter FIFOs to clear, really should be longest SL+SG
 
    for(k7=0;k7<N_K7_FPGAS;k7++)
    {
-      mapped[AMZ_DEVICESEL] =  cs[k7];	// select FPGA 
+      mapped[AMZ_DEVICESEL] =  cs[k7];	               // select FPGA 
 
       for( ch_k7 = 0; ch_k7 < NCHANNELS_PER_K7 ; ch_k7 ++ )
       {
@@ -1961,9 +2020,8 @@ int main(void) {
          mapped[AMZ_EXDWR]  = reglo & 0xFFFE;         // write lower 16 bit with bit 0 zerod (halt off)
       }
    }
-   usleep(100);      // really should be longest SL+SG
+   usleep(100);                                       // really should be longest SL+SG
 
- //  mapped[ADSP_CLR] = 1;
    mapped[ARTC_CLR] = 1;
 
       
@@ -1986,9 +2044,11 @@ int main(void) {
    mapped[AMZ_DEVICESEL] = CS_MZ;	      // select MZ
    mapped[AMZ_CSRIN] = 0x0000;            // RunEnable=1 > nLive=0 (DAQ on)
 
-   mapped[ARTC_CLR] = 1;     // TODO here or above?
-     
-   // --------------------------- HW info ----------------------------------
+   mapped[ARTC_CLR] = 1;                  // TODO here or above?
+ 
+   
+
+   // **************************** HW info ****************************
 
  
    // ADC board temperature
@@ -1996,13 +2056,13 @@ int main(void) {
    if(verbose) printf(" DB0 board temperature: %d C \n",(int)board_temperature(mapped, I2C_SELDB0) ); 
    if(verbose) printf(" DB1 board temperature: %d C \n",(int)board_temperature(mapped, I2C_SELDB1) );
 
-   // ***** ZYNQ temperature
+   // ZYNQ temperature
    if(verbose) printf(" Zynq Controller temperature: %d C \n",(int)zynq_temperature() );
 
-   // ***** check HW info *********
+   // check HW info 
    revsn = hwinfo(mapped,I2C_SELMAIN);
    printf(" Main board Revision 0x%04X, Serial Number %d \n",(revsn>>16) & 0xFFFF, revsn & 0xFFFF);
-// if(mval==0) printf("WARNING: HW may be incompatible with this SW/FW \n");
+   // if(mval==0) printf("WARNING: HW may be incompatible with this SW/FW \n");
 
    revsn = hwinfo(mapped,I2C_SELDB0);
    if(verbose) printf(" DB0 Revision 0x%04X\n",(revsn>>16) & 0xFFFF);
@@ -2010,152 +2070,25 @@ int main(void) {
    revsn = hwinfo(mapped,I2C_SELDB1);
    if(verbose) printf(" DB1 Revision 0x%04X\n",(revsn>>16) & 0xFFFF);
 
-   // ***** Version check *****
-   // PCB_VERSION == HW_VERSION except for 2nd last digit, 4th digit optional
-   // 2nd last digit of PS_CODE_VERSION should be same as 2nd digit of FW versions (e.g. 0x0322 and 0x21## )
-   // 2nd last digit of PCB_VERSION should be same as 2nd last digit of Kintex FW versions (DB ID)
+   mval = version_check(mapped, fippiconfig.RUN_TYPE);    // subroutine prints warning statements
 
-
-   mval = 1;   // assume no mismatch 
-
-   // 1)  PCB_VERSION and Zynq HW_VERSION (indicates HW compatibility)
-   //     for example, PCB_VERSION 0xA1#2 (Pixie-Net XL Rev C, with DB=#) must use Zynq FW designed for HW 0xA102.  
-   //     Zynq FW does not care for the DB #, so it's always 0 and masked out in the test
-   //     First digit of PCB_VERSION varies with board configuration (A = std 10G, B = 1G WR, C = TTCL 10G, D = 10G + PZ WR)
-   //     First digit of Zynq HW_VERSION varies with Zynq model: A= MZ, D = PZ, E = ZT)
-   //     Exceptions: HW changes in Pixie-Net XL Rev C do not affect controller (at this point) so ok to use HW_VERSION 0x---1 with PCB_VERSION 0x---2
-   revsn = hwinfo(mapped,I2C_SELMAIN);    // contains PCB_VERSION
-   mapped[AMZ_DEVICESEL] = CS_MZ;         
-   reglo = mapped[AMZ_HW_VER];            // contains MZ HW_VERSION
-   if( ((revsn>>16)&0x0F0F) != (reglo & 0x0F0F))                      
-   {
-      if(    (((revsn>>16)&0x000F)==2) && ((reglo&0x000F)==1)  )
-      {
-         // exception: board Rev C (2) is ok with MZ for rev B (1)
-      } else {
-         printf(" Mismatch of main board per PROM (PCB_VERSION = 0x%04X) and Zynq controller firmware (HW_VERSION = 0x%04X)\n",(revsn>>16) & 0xFFFF, reglo & 0xFFFF);
-         mval = 0;
-      }
-   }
-
-   // 2) PS_CODE_VERSION and Zynq FW_VERSION (indicates compatibility between SW and Zynq FW)
-   //    for example, PS_CODE_VERSION 0x03XY must use FW_VERSION 0xXY#Z
-   //    XY are incremented for every release. But one code may lag behind the other, so difference in Y is allowed
-   //    FW_VERSION includes placeholder for DB #
-   //    FW_VERSION last digit indicates custom code variant 
-   //    Exceptions: Zynq FW_VERSION 0x25 -- can still be used with  PS_CODE_VERSION 0x033x, except for DB08
-   reglo = mapped[AMZ_FW_VER];           // contains MZ FW_VERSION   
-   if( (PS_CODE_VERSION&0xF0) != ((reglo>>8) & 0xF0) ) 
-   {
-      if( (reglo == 0x2500) &&  ((PS_CODE_VERSION & 0xFF0) == 0x0330) )
-      {
-         // no error
-         mval = mval ;
-      }
-      else
-      {
-         printf(" Mismatch of SW (PS_CODE_VERSION = 0x%04X) and Zynq controller firmware (FW_VERSION = 0x%04X)\n",PS_CODE_VERSION, reglo & 0xFFFF);
-         mval = 0;
-      }
-   }
-
-   // 2a) Zynq FW_VERSION and DB #
-   //     Contrary to above, Zynq FW 0x25-- does not know about DB08 and higher
-   revsn = hwinfo(mapped,I2C_SELDB1);    // contains DB #
-   if( (reglo == 0x2500) && (((revsn>>16)&0x00F0) > 0x0070) )
-   {
-      printf(" Mismatch of DB type (0x%04X) and Zynq controller firmware (FW_VERSION = 0x%04X)\n",(revsn>>16), reglo & 0xFFFF);
-      mval = 0; 
-   }
-
-   
-   revsn = hwinfo(mapped,I2C_SELMAIN);    // contains PCB_VERSION
-   for(k7=0;k7<N_K7_FPGAS;k7++)
-   {
-
-     mapped[AMZ_DEVICESEL] = cs[k7];	            // select FPGA  
-     mapped[AMZ_EXAFWR]    = AK7_PAGE;             // write to  k7's addr        addr 3 = channel/system, select    
-     mapped[AMZ_EXDWR]     = PAGE_SYS;             // 0x000  = system page   
-     
-     mapped[AMZ_EXAFRD] = AK7_SYS_FW_VER;    // contains K7 FW_VERSION
-     reglo = mapped[AMZ_EXDRD];
-     if(SLOWREAD) reglo = mapped[AMZ_EXDRD];   
-
-     // 3) PS_CODE_VERSION and Kintex FW_VERSION (indicates compatibility between SW and Kintex FW)
-     //    for example, PS_CODE_VERSION 0x03XY must use FW_VERSION 0xXY#Z
-     //    XY are incremented for every release. But one code may lag behind the other, so difference in Y is allowed
-     //    FW_VERSION includes placeholder for DB #
-     //    FW_VERSION last digit indicates custom code variant 
-     if( (PS_CODE_VERSION&0xF0) != ((reglo>>8) & 0xF0) ) 
-     {
-         printf(" Mismatch of SW (PS_CODE_VERSION = 0x%04X) and Kintex firmware (FW_VERSION = 0x%04X)\n",PS_CODE_VERSION, reglo & 0xFFFF);
-         mval = 0;
-     }
-
-     // 4) PCB_VERSION and Kintex FW_VERSION (indicates HW compatibility for DB #)
-     //    for example, PCB_VERSION A1#2 must match FW_VERSION 0xXY#Z in the # field
-     //    Exceptions: DB04 FW works also for DB08
-     if( ((revsn>>16)&0xF0) != (reglo & 0xF0) ) 
-     {
-         if( (((revsn>>16)&0xF0) == 0x0080) && ( (reglo & 0xF0)==0x0040) )
-         {
-            // ok, DB04 FW can be used for DB08
-            printf(" Using Kintex firmware (FW_VERSION = 0x--%02X) for DB08 (PCB_VERSION = 0x--%02X) \n", reglo & 0x00FF,(revsn>>16) & 0x00FF);
-         }
-         else
-         {
-            printf(" Mismatch of main or daughter board per PROM (PCB_VERSION = 0x%04X) and Kintex firmware (FW_VERSION = 0x%04X)\n",(revsn>>16) & 0xFFFF, reglo & 0xFFFF);
-            mval = 0;
-         }
-     }
  
-     // 5) Special tests
-     // a) Runtype 0x404 only supported in special FW variants
-     if( (fippiconfig.RUN_TYPE == 0x404) && !( ((reglo & 0xFF)==0x42) ||  ((reglo & 0xF0)==0x60) ) ) 
-     {
-         printf(" Runtype 0x404 only supported for FW version 0x__42 or 0x__6_\n");
-         mval = 0;
-     }
-     if( (fippiconfig.RUN_TYPE == 0x404) && !( (PS_CODE_VERSION==0x033A) ||  ((reglo)==0x3A42) ) ) 
-     {
-         printf(" Runtype 0x404: mismatch of SW and FW \n");
-         mval = 0;
-     }
- 
-     // While we are at it, do a system status and health check, e.g. ADC clock locked, ADC frame ok (DB01) 
-     mapped[AMZ_EXAFRD] = AK7_ADCFRAME;    // contains K7 FW_VERSION
-     reglo = mapped[AMZ_EXDRD];
-     if(SLOWREAD) reglo = mapped[AMZ_EXDRD];  
-
-     if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)
-         mval = 0x1600;    // only 2 ADCs active for DB04
-     else
-         mval = 0x1F00;    // all 4 ADCs active
-     if( (reglo & 0xFF00) !=mval)
-         printf(" Warning: Some ADC channels may be missing (no clock, 0x%04x) \n", reglo);
-
-     if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_125) | ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_75) )  
-     {
-         if( (reglo & 0xFF) != ADC_FRAME_DB01) printf(" Warning: ADC not properly initialized !\n");
-     }
-
-
-   }  // end for K7
-
+   
    
 
-   
-   // --------------------------- ADC settings ----------------------------------
-   
 
+   
+   // **************************** ADC settings *********************************
+   
+   // ------------------ set clock input delay (FPGA register) ------------------
    if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250) | 
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) |
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) |
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) | 
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) | 
-       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) )  {
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) |
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500) )  {
 
-      // set clock input delay
       for(k7=0;k7<N_K7_FPGAS;k7++)
       {
 
@@ -2163,39 +2096,36 @@ int main(void) {
          mapped[AMZ_EXAFWR]    = AK7_PAGE;             // write to  k7's addr        addr 3 = channel/system, select    
          mapped[AMZ_EXDWR]     = PAGE_SYS;             // 0x000  = system page                
           
-         mval = 15; // default
-         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) 
-           mval = 15;                                 // ADC clk delay 
-         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) 
-           mval = 10;                                 // ADC clk delay 
-         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) 
-           mval = 20;   // 20 for -R 15 for generic variant         // ADC clk delay 
-         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) 
-           mval = 20;                                 // ADC clk delay 
-          
+         // specify clock delays (specific to each ADC / FW)
+         mval = 15; // default  
+         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250)  mval = 20;   // ADC clk delay 
+         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)  mval = 15;   // ADC clk delay 
+         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250)  mval = 10;   // ADC clk delay         
+         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)  mval = 20;   // ADC clk delay    
+         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)  mval = 10 + (0<<4) + (10<<8) + ((30/2)<<12);    // ADC clk delay: 4 bits per channel, range from 0-15, multiplied by 2 in FPGA . 
+                                                             //   mval = 10 + (10<<4) + (10<<8) + (10<<12);    // for older compiles?)  
+                                                             //   11/8 compile: 10/0/0/15 ok (x2 in FPGA)         
+         // write clock delays
          mapped[AMZ_EXAFWR]    = AK7_ADCBITSLIP;       // write to  k7's addr     addr 0x06 for clk and data delay
          mapped[AMZ_EXDWR]     = mval;                 // write to ADC_delay register to set values
-
          usleep(100);
-
          mapped[AMZ_EXAFWR]    = AK7_ADCBITSLIP;       // write to  k7's addr     use bitslip write to apply delay 
          mapped[AMZ_EXDWR]     = mval;                 // write to ADC_delay register to apply (not sure if 2x is needed, but making sure it gets writtenn, then applied)     
 
          if(verbose) printf(" clk delay %d\n",mval);
       
       }  // end for N_K7_FPGAS 
-   }  // end DB06/04/08
+   }  // end if DB02/04/06/08/10
    
-   
-   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) | 
-       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) )  {
 
-      // set ADC programming
+    // ----------------------- Special ADC configuration (via ADC SPI)  ------------------------
+   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250) | 
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500) )  
+   {
       for(k7=0;k7<N_K7_FPGAS;k7++)
       {
-      
-        // -------------------------- debug only -------------------------------------
-      
+     
+        // ......... debug only .........   
         //  enable/disable  ADC's test ramp
         //     switch ADC output to ramp :        data/addr = 0xA0 / 0x00C0 
         //     switch ADC output to signal :      data/addr = 0x00 / 0x00C0 
@@ -2204,37 +2134,33 @@ int main(void) {
          {
             //mval = 0xA0;   // turn on ramp
             mval = 0x00;     //turn off ramp
-            ADCSPI_Write06(mapped, k7, ch_k7, 0xC0, mval); // coarse offset, core 1
+            ADCSPI_Write06(mapped, k7, ch_k7, 0xC0, mval); 
          }
           
-         // if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)   {
-         // -------------------------- I2E calibration  -------------------------------------
-         // *********************** run adcinit instead ********************************** 
+         // for 14/500 I2E calibration, run adcinit instead
         
        }  // end for N_K7_FPGAS 
-   }  // end DB06
+   }  // end if DB06
                                   
 
    if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) | 
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) | 
        ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250) | 
-       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) )  {
-
-      // set ADC programming
+       ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) )  
+   {  
       for(k7=0;k7<N_K7_FPGAS;k7++)
-      {
-      
-        // -------------------------- debug only -------------------------------------
-      
+      {  
+  
+        // ......... debug only .........       
         //  enable/disable  ADC's test ramp
         //     switch ADC output to ramp :        data/addr = 0x0F / 0x000D 
         //     switch ADC output to signal :      data/addr = 0x00 / 0x000D 
              
-         for( ch_k7 = 0; ch_k7 < 4 ; ch_k7 ++ )       // always program 4 ADC chips, most settings apply to both channels
-         {
-           //mval = 0x0F;   // turn on ramp
-             mval = 0x04;   // turn on "checkerboard" 0xAAA/3555
-             mval = 0x00;     //turn off ramp
+        for( ch_k7 = 0; ch_k7 < 4 ; ch_k7 ++ )       // always program 4 ADC chips, most settings apply to both channels
+        {
+          //mval = 0x0F;   // turn on ramp
+            mval = 0x04;   // turn on "checkerboard" 0xAAA/3555
+            mval = 0x00;     //turn off ramp
             ADCSPI_Write06(mapped, k7, ch_k7, 0x0D, mval); 
             // 8 bits for address only (upper 8 bits are control or all zero for this ADC)
             // 8 bits for data only
@@ -2242,16 +2168,267 @@ int main(void) {
 
             mval = 0x01;     // transfer enable bit
             ADCSPI_Write06(mapped, k7, ch_k7, 0xFF, mval);       // write to the transfer register to apply
-         }
-          
-         // if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)   {
-         // -------------------------- I2E calibration  -------------------------------------
-         // *********************** run adcinit instead ********************************** 
+        }
         
-       }  // end for N_K7_FPGAS 
-   }  // end DB06
+      }  // end for N_K7_FPGAS 
+   }  // end DB02/4/8
+
+
+   if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500) )  
+   {
+      for(k7=0;k7<N_K7_FPGAS;k7++)
+      {
+                
+        for( ch_k7 = 0; ch_k7 < 4 ; ch_k7 ++ )       
+        {
+
+        /* 
+          // readback not implemented in FPGA
+
+          reglo = 0x0;  // address
+          mval = ADCSPI_Read10(mapped, k7, ch_k7, reglo); 
+          printf(" K7 %d, channel %d, read from 0x%X: 0x%02x\n", k7, ch_k7, reglo, mval );
+
+          reglo = 0x1;  // address
+          mval = ADCSPI_Read06(mapped, k7, ch_k7, reglo); 
+          printf(" K7 %d, channel %d, read from 0x%X: 0x%02x\n", k7, ch_k7, reglo, mval );
+
+          reglo = 0x2;  // address
+          mval = ADCSPI_Read06(mapped, k7, ch_k7, reglo); 
+          printf(" K7 %d, channel %d, read from 0x%X: 0x%02x\n\n", k7, ch_k7, reglo, mval );
+       */
+          // ......... debug only .........    
+          ADCSPI_Write06(mapped, k7, ch_k7, 0x19, 0xFF);     // test pattern user 1 (low)
+          ADCSPI_Write06(mapped, k7, ch_k7, 0x1A, 0xFF);     // test pattern user 1 (high)   
+          mval = 0x04;      //turn on  checkerboard
+          mval = 0x00;      // turn off
+          //mval = 0x08;   // user pattern 1 always
+          //mval = 0x88;   // user pattern 1 alternating with 0000
+          reglo = 0x0D;     // address
+          ADCSPI_Write06(mapped, k7, ch_k7, reglo, mval);    // test pattern on or off
+
+          // ......... required .......
+          //ADCSPI_Write06(mapped, k7, ch_k7, 0x17, 0x07);   // shift clk vs data
+          ADCSPI_Write06(mapped, k7, ch_k7, 0x2C, 0x04);     // DC coupling
+          //ADCSPI_Write06(mapped, k7, ch_k7, 0x15, 0x00);   // LVDS drive strength F = 2 mA (0 = 3.5mA)
+          //ADCSPI_Write06(mapped, k7, ch_k7, 0x08, 0x41);   // power down  
+          ADCSPI_Write06(mapped, k7, ch_k7, 0x08, 0x00);     // no power down
+          ADCSPI_Write06(mapped, k7, ch_k7, 0xFF, 0x01);     // apply      ?
+                           
+        }     // end for channels
+          
+        
+      }  // end for N_K7_FPGAS 
+  }  // end DB10
   
- 
+ if(0)
+ {
+      // --------------------------- Auxiliary programming ----------------------------------
+
+      addr = 0;
+      data = 0;     
+      printf( " Programming TTCL board (if present) \n");  
+      for(k7=0;k7<N_K7_FPGAS;k7++)
+      {
+
+         mapped[AMZ_DEVICESEL] = cs[k7];	            // select FPGA  
+         mapped[AMZ_EXAFWR]    = AK7_PAGE;            // write to  K7's addr        addr 3 = channel/system, select    
+         mapped[AMZ_EXDWR]     = PAGE_SYS;            //  0x000  = system page                
+
+   
+         // check if there is a TTCL board
+         // 2. b.	The TTCL interface card powers up ... register 1 default value is 0x67
+         addr = 1;
+
+         reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
+         mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+         mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+   
+         reglo = (data & 0xFFFF);     
+         mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+         mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+         usleep(100);
+   
+         mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
+         data =  mapped[AMZ_EXDRD];                // read from K7
+         if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly    
+   
+         if((data & 0x00FF)!=0x67)
+         {
+            printf( "  Reg 1: 0x%04X Unexpected default value, exiting. \n", data);   
+            flock( fd, LOCK_UN );
+            munmap(map_addr, size);
+            close(fd);
+            return(-1);
+         }
+         else
+         {
+            printf( "  Reg 1: 0x%04X (expected default value)\n", data); 
+            // and continue
+         
+
+            //  6. switch from local to TTCL clock 
+      
+            // switch clock
+            addr = 0;
+            data = 0x8000;                            // set bit 15 in the control register 
+            reghi = (addr & 0x7F);                    // 7 bits of address, bit 8 = 0 for write
+            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+      
+            reglo = (data & 0xFFFF);     
+            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+            usleep(100);
+      
+            // reset SERDES_SM_LOST_LOCK
+            addr = 0;
+            data = 0x0020;                            // clear the  SERDES_SM_LOST_LOCK bit (npw that we have a good clock) 
+            reghi = (addr & 0x7F);                    // 7 bits of address, bit 8 = 0 for write
+            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+      
+            reglo = (data & 0xFFFF);     
+            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+            usleep(100);
+      
+            // read status
+            addr = 13;
+            reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
+            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+      
+            reglo = (data & 0xFFFF);     
+            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+            usleep(100);
+      
+            mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
+            data =  mapped[AMZ_EXDRD];                // read from K7
+            if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly    
+      
+            if(data!=0x001E)      // check bits 2,3 high
+            {
+               printf( "   Reg 13: 0x%04X Unexpected status, should be 0x1E, but continuing  \n", data);   
+               //flock( fd, LOCK_UN );
+               //munmap(map_addr, size);
+               //close(fd);
+               //return(-1);
+            }
+            else
+            {
+               printf( "   Reg 13: 0x%04X Status register indicates '0x1E', proceeding.  \n", data); 
+            }
+   
+   
+          //  8. program delays
+      
+         //    use defaults for now
+      
+         //       Enable the delayed-trigger logic by setting bit 14 of the register at address 3.  
+         //       Again, this would require a read-modify-write as other bits in this register do other things; 
+      
+            // read addr 3
+            addr = 3;
+            reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
+            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+      
+            reglo = (data & 0xFFFF);     
+            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+            usleep(100);
+      
+            mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
+            data =  mapped[AMZ_EXDRD];                // read from K7
+            if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
+      
+            printf( "   DIAGNOSTIC_CTL_REG: 0x%04x, now turning on delayed trigger logic \n", data); 
+       
+            // set bit 14
+            data = data | 0x4000;
+            reghi = (addr & 0x7F);                    // 7 bits of address, bit 8 = 0 for write
+            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+      
+            reglo = (data & 0xFFFF);     
+            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+            usleep(100);
+      
+      
+            // read back addr 3
+            reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
+            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+      
+            reglo = (data & 0xFFFF);     
+            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+            usleep(100);
+      
+            mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
+            data =  mapped[AMZ_EXDRD];                // read from K7
+            if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
+      
+            printf( "   DIAGNOSTIC_CTL_REG: 0x%04x read back after change  \n", data); 
+   
+           
+            // set delay in register 8
+             // read addr 8
+            addr = 8;
+            reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
+            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+      
+            reglo = (data & 0xFFFF);     
+            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+            usleep(100);
+      
+            mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
+            data =  mapped[AMZ_EXDRD];                // read from K7
+            if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
+      
+            printf( "   ACCEPT_MSG_DELAY_REG: 0x%04x, now writing new delay ", data); 
+       
+            // set delay value
+            data = 0x300;                             // TODO: use value  from ini file  
+            printf( "   0x%04x \n ", data);
+            reghi = (addr & 0x7F);                    // 7 bits of address, bit 8 = 0 for write
+            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+      
+            reglo = (data & 0xFFFF);     
+            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+            usleep(100);
+      
+      
+            // read back addr 8
+            reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
+            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+      
+            reglo = (data & 0xFFFF);     
+            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+            usleep(100);
+      
+            mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
+            data =  mapped[AMZ_EXDRD];                // read from K7
+            if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
+      
+            printf( "  ACCEPT_MSG_DELAY_REG: 0x%04x read back after change  \n", data); 
+
+
+         } // end else init value ok
+
+
+      } // end for over FPGAs
+   } // end aux
+
  // clean up  
  flock( fd, LOCK_UN );
  munmap(map_addr, size);

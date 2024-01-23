@@ -575,6 +575,7 @@ Function Pixie_Tdiff_compute_diff()
 	Nvar DiffA_CFD = root:LM:DiffA_CFD 	// specify to use CFD or just TS
 	Nvar DiffB_CFD = root:LM:DiffA_CFD 
 	Nvar DiffC_CFD = root:LM:DiffA_CFD 
+	Nvar DiffA_cut = root:LM:DiffA_cut
 
 	
 	String 	text = "root:LM"
@@ -621,10 +622,17 @@ Function Pixie_Tdiff_compute_diff()
 		TdiffC = TSscale*abs(PA -  NA)	// in ns
 	endif
 	
-	// make time histograms
+
+	if(DiffA_cut)
+ 		Pixie_Tdiff_cut()
+ 	endif
 	
+	
+	// make time histograms
  	Pixie_Tdiff_histo()
  	
+ 	
+
 
 End	
 
@@ -643,13 +651,84 @@ Function Pixie_Tdiff_histo()
 	Nvar  BinsizeTB = root:LM:BinsizeTB
 	Nvar NbinsTC = root:LM:NbinsTC
 	Nvar BinsizeTC =  root:LM:BinsizeTC
+	Nvar DiffA_cut = root:LM:DiffA_cut
 
 	histogram/B={-BinsizeTA*NbinsTA/2,BinsizeTA,NbinsTA} root:LM:TdiffA,   root:LM:ThistoA
 	histogram/B={-BinsizeTB*NbinsTB/2,BinsizeTB,NbinsTB} root:LM:TdiffB,   root:LM:ThistoB
 	histogram/B={-BinsizeTC*NbinsTC/2,BinsizeTC,NbinsTC} root:LM:TdiffC,   root:LM:ThistoC
 //	print "Total in Tdiff histo: A:",sum( root:LM:ThistoA), "B:",sum( root:LM:ThistoB), "C:",sum( root:LM:ThistoC)
 
+	if(DiffA_cut)
+		histogram/B={-BinsizeTA*NbinsTA/2,BinsizeTA,NbinsTA} TdiffA_cut,   ThistoA_cut
+	endif
+	
 End
+
+//########################################################################
+//
+//	Pixie_Tdiff_cut:
+//		Apply energy cut
+//
+//########################################################################
+Function Pixie_Tdiff_cut()
+
+	Wave energy0 = root:LM:energy0
+	Wave energy1 = root:LM:energy1
+	Wave LocTime0 = root:LM:LocTime0
+	Wave LocTime1 = root:LM:LocTime1
+	Wave CFD0 = root:LM:CFD0
+	Wave CFD1 = root:LM:CFD1
+	Nvar MaxEvents = root:LM:MaxEvents 
+	make/o/n=(MaxEvents) E0, E1, LT0, LT1, C0, C1, TdiffA_cut
+	
+	Nvar DiffA_cut = root:LM:DiffA_cut
+	Nvar Elow0  = root:LM:ElowP 		// limits for energy cut
+	Nvar Ehigh0 = root:LM:EhighP 	
+	Nvar Elow1  = root:LM:ElowN 
+	Nvar Ehigh1 = root:LM:EhighN 
+	
+	E0 = nan
+	E1 = nan
+	LT0 = nan
+	LT1 = nan
+	C0 = nan
+	C1 = nan
+	TdiffA_cut = nan
+
+
+	Variable ev
+	
+	for(ev=0;ev<MAXevents;ev+=1)
+	
+		// coinc 1: E0, E1 = 511 keV
+		// extract the Tdiff values for those events within the energy window
+		if( (energy0[ev]>Elow0) && (energy0[ev]<Ehigh0) && (energy1[ev]>Elow1) && (energy1[ev]<Ehigh1))
+			E0[ev] = energy0[ev]
+			E1[ev] = energy1[ev]
+			LT0[ev] = LocTime0[ev]
+			LT1[ev] = LocTime1[ev]
+			C0[ev] = CFD0[ev]
+			C1[ev] = CFD1[ev]
+			TdiffA_cut[ev] = LocTime0[ev] - LocTime1[ev] + CFD0[ev] -  CFD1[ev]
+		endif
+	
+	endfor
+	
+	// histogram with the same bin settings as in the main panel
+	Nvar NbinsTA = root:LM:NbinsTA
+	Nvar BinsizeTA = root:LM:BinsizeTA
+	make/o/n=100 ThistoA_cut
+	histogram/B={-BinsizeTA*NbinsTA/2,BinsizeTA,NbinsTA} TdiffA_cut,   ThistoA_cut
+	
+	// show on histogram plot
+	Execute "Pixie_Plot_Thisto()"
+	RemoveFromGraph/Z ThistoA_cut		// remove if already present
+	AppendToGraph ThistoA_cut
+	ModifyGraph mode(ThistoA_cut)=6,rgb(ThistoA_cut)=(1,16019,65535)
+
+
+
+End 
 
 
 
@@ -776,11 +855,12 @@ Function Pixie_Math_GaussFit_XL(ctrlName,popNum,popStr) : PopupMenuControl
 	Wave MCAChannelPeakArea=root:pixie4:MCAChannelPeakArea
 			
 	Nvar MCAfitOption =  root:pixie4:MCAfitOption
+	Nvar ModuleTypeXL =  root:pixie4:ModuleTypeXL
 	//MCAfitOption = 4	// always use cursors
 	Variable range = 1	// fit range around largest peak in %
 	
 	String waveCursorAIsOn, waveCursorBIsOn, wavname, foldername, wvn
-	Variable ChanNum, EndNum, xa, xb, peakloc, xtemp, Listnum
+	Variable ChanNum, EndNum, xa, xb, peakloc, xtemp, Listnum, dEavg, res, avgcount
 	foldername="root:pixie4:"
 	
 	ChanNum=popNum-1					// channel number in loop and wave ref
@@ -789,7 +869,11 @@ Function Pixie_Math_GaussFit_XL(ctrlName,popNum,popStr) : PopupMenuControl
 	wavname = "MCAch"
 	if (popNum==9)	
 		ChanNum= 0	
-		EndNum = 8						// run through 0..7
+		if(ModuleTypeXL)
+			EndNum = 8						// run through 0..7, except for PN	
+		else
+			EndNum = 4
+		endif
 		Listnum=0
 		wavname = "MCAch"
 	endif
@@ -802,7 +886,8 @@ Function Pixie_Math_GaussFit_XL(ctrlName,popNum,popStr) : PopupMenuControl
 
 	if(cmpstr(ctrlName, "GaussFitMCA") == 0)
 
-
+		dEavg = 0
+		avgcount = 0
 		DoWindow/F MCASpectrumDisplayXL
 		do	
 				 
@@ -860,11 +945,19 @@ Function Pixie_Math_GaussFit_XL(ctrlName,popNum,popStr) : PopupMenuControl
 //			MCAChannelFWHMPercent[Listnum]=100*W_coef[3]*2*sqrt(ln(2))/W_coef[2]
 //			MCAChannelFWHMAbsolute[Listnum]=W_coef[3]*2*sqrt(ln(2))
 //			MCAChannelPeakArea[Listnum]=W_coef[3]*W_coef[1]*sqrt(Pi)/deltax(wav)
-			print "channel",ChanNum,"FWHM =",100*W_coef[3]*2*sqrt(ln(2))/W_coef[2],"%,   pos = ",W_Coef[2]
-			
+			res = 100*W_coef[3]*2*sqrt(ln(2))/W_coef[2]
+			print "channel",ChanNum,"FWHM =",res,"%,   pos = ",W_Coef[2]
+			if(res>0.05)
+				dEavg = dEavg+res
+				avgcount = avgcount+1							
+			endif
 			ChanNum+=1
 			Listnum+=1
 		while (ChanNum<EndNum)
+		
+		if(popNum==9)
+			print "Avg FWHM =",dEavg/avgcount,"%"
+		endif
 		
 			
 	endif
@@ -1101,7 +1194,7 @@ Variable no // event number in wfarray
 	endif
 							
 
-	if(cfdfrc)		// resut invalid if "forced"
+	if(cfdfrc)		// result invalid if "forced"
 		cfd=0
 	endif
 	

@@ -106,7 +106,7 @@ int main(void) {
   {
       GOOD_CH[ch]  =  ( fippiconfig.CHANNEL_CSRA[ch] & (1<<CCSRA_GOOD) ) >0;  
       dt[ch]       =  (int)floor( fippiconfig.XDT[ch]*FILTER_CLOCK_MHZ_MOST);       // not supporting 75 MHz variant with this
-    //   printf( "%d ", GOOD_CH[ch] );
+      // printf( "ch %d, good %d, dt %d \n", ch, GOOD_CH[ch], dt[ch] );
   }
   //printf( "\n " );
 
@@ -213,7 +213,7 @@ int main(void) {
   for( k = 0; k < NTRACE_SAMPLES; k ++ )
   {
       //fprintf(fil,"%d",k);                  // sample number
-      fprintf(fil,"%f",k*fippiconfig.XDT[ch] );           // time in us
+      fprintf(fil,"%f",k*fippiconfig.XDT[0] );           // time in us
       for(ch=0;ch<NCHANNELS_PRESENT;ch++)   fprintf(fil,",%d",adc[ch][k]);    // print channel data
       fprintf(fil,"\n");
    }

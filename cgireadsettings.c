@@ -50,7 +50,7 @@
 
 int main(void) { 
 
-  int ch;      // ch = abs ch. no; ch_k7 = ch. no in k7
+  int ch,chp;      // ch = abs ch. no; ch_k7 = ch. no in k7
   
    // ******************* read ini file and fill struct with values ********************
   
@@ -72,15 +72,18 @@ int main(void) {
   
   // always report all 32 channels, even those unused
   printf("channel,polarity,offset,analog gain,digital gain,tau,\n");
-  for(ch=0;ch<NCHANNELS;ch++)                                           
+  for(ch=0;ch<NCHANNELS;ch++)  
+  {
+   if(ch>16) chp = ch-16;     // TODO: something amiss with printing 32 channels, but since the format is set, just repeat the first 16 for now                                       
       printf("%d,%d,%04f,%02f,%04f,%04f,\n",
          ch,
-         ((fippiconfig.CHANNEL_CSRA[ch] & (1<<CCSRA_POLARITY))>0),
-         fippiconfig.VOFFSET[ch],
-         fippiconfig.ANALOG_GAIN[ch],
-         fippiconfig.DIG_GAIN[ch],
-         fippiconfig.TAU[ch]
-       );   // end for
+         ((fippiconfig.CHANNEL_CSRA[chp] & (1<<CCSRA_POLARITY))>0),
+         fippiconfig.VOFFSET[chp],
+         fippiconfig.ANALOG_GAIN[chp],
+         fippiconfig.DIG_GAIN[chp],
+         fippiconfig.TAU[chp]
+       );   
+    } // end for
 
     // report key module parameters in the end
     printf("RUN_TYPE,0x%x,",fippiconfig.RUN_TYPE);

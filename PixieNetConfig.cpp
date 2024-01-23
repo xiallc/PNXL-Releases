@@ -637,6 +637,10 @@ int init_PixieNetFippiConfig_from_file( const char * const filename,
   if( (ignore_missing==0 && ret==1) || (ret<0) )  return -1;
   if(ret==0) config->MODULE_CSRA = SetOrClrBit(1, config->MODULE_CSRA, bit); 
 
+  ret = parse_single_bool_val( label_to_values, "MCSRA_FPTTCL_03", bit, ignore_missing ) ;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )  return -1;
+  if(ret==0) config->MODULE_CSRA = SetOrClrBit(3, config->MODULE_CSRA, bit); 
+
   ret = parse_single_bool_val( label_to_values, "MCSRA_FPCOUNT_04", bit, ignore_missing ) ;
   if( (ignore_missing==0 && ret==1) || (ret<0) )  return -1;
   if(ret==0) config->MODULE_CSRA = SetOrClrBit(4, config->MODULE_CSRA, bit); 
@@ -667,7 +671,7 @@ int init_PixieNetFippiConfig_from_file( const char * const filename,
 
   ret = parse_single_int_val( label_to_values, "RUN_TYPE", config->RUN_TYPE, ignore_missing ) ;
   if( (ignore_missing==0 && ret==1) || (ret<0) )   return -8;
-
+/*
 //   printf("COINCIDENCE_PATTERN = 0x%x\n",config->COINCIDENCE_PATTERN);
    // --------------- COINC PATTERN bits -------------------------------------
   if (ignore_missing==0)           // initialize only when reading defaults  
@@ -736,54 +740,58 @@ int init_PixieNetFippiConfig_from_file( const char * const filename,
   ret = parse_single_bool_val( label_to_values, "COINC_PATTERN_1111", bit, ignore_missing ) ;
   if( (ignore_missing==0 && ret==1) || (ret<0) )    return -20;
   if(ret==0) config->COINCIDENCE_PATTERN = SetOrClrBit(15, config->COINCIDENCE_PATTERN, bit);  
-                                         
+*/                                         
 //   printf("COINCIDENCE_PATTERN = 0x%x\n",config->COINCIDENCE_PATTERN);
 
   // --------------- Other module parameters -------------------------------------
 
-    ret = parse_single_int_val( label_to_values, "MAX_EVENTS", config->MAX_EVENTS, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -8;
+  //ret = parse_single_int_val( label_to_values, "MAX_EVENTS", config->MAX_EVENTS, ignore_missing ) ;
+  //if( (ignore_missing==0 && ret==1) || (ret<0) )   return -21;
   
-  ret = parse_single_dbl_val( label_to_values, "COINCIDENCE_WINDOW", config->COINCIDENCE_WINDOW, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -7;
+  //ret = parse_single_dbl_val( label_to_values, "COINCIDENCE_WINDOW", config->COINCIDENCE_WINDOW, ignore_missing ) ;
+  //if( (ignore_missing==0 && ret==1) || (ret<0) )   return -22;
 
   ret = parse_single_int_val( label_to_values, "SYNC_AT_START", config->SYNC_AT_START, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -11;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -23;
 
   ret = parse_single_int_val( label_to_values, "SLOW_FILTER_RANGE", config->SLOW_FILTER_RANGE, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -24;
   
   ret = parse_single_int_val( label_to_values, "FAST_FILTER_RANGE", config->FAST_FILTER_RANGE, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -25;
   
-   ret = parse_single_int_val( label_to_values, "FASTTRIG_BACKPLANEENA", config->FASTTRIG_BACKPLANEENA, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -11;
+  //ret = parse_single_int_val( label_to_values, "FASTTRIG_BACKPLANEENA", config->FASTTRIG_BACKPLANEENA, ignore_missing ) ;
+  //if( (ignore_missing==0 && ret==1) || (ret<0) )   return -26;
 
-  ret = parse_single_int_val( label_to_values, "TRIG_CONFIG0", config->TRIG_CONFIG0, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
+  //ret = parse_single_int_val( label_to_values, "TRIG_CONFIG0", config->TRIG_CONFIG0, ignore_missing ) ;
+  //if( (ignore_missing==0 && ret==1) || (ret<0) )   return -27;
   
-  ret = parse_single_int_val( label_to_values, "TRIG_CONFIG1", config->TRIG_CONFIG1, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
+  //ret = parse_single_int_val( label_to_values, "TRIG_CONFIG1", config->TRIG_CONFIG1, ignore_missing ) ;
+  //if( (ignore_missing==0 && ret==1) || (ret<0) )   return -28;
 
-   ret = parse_single_int_val( label_to_values, "TRIG_CONFIG2", config->TRIG_CONFIG2, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -11;
+  //ret = parse_single_int_val( label_to_values, "TRIG_CONFIG2", config->TRIG_CONFIG2, ignore_missing ) ;
+  //if( (ignore_missing==0 && ret==1) || (ret<0) )   return -29;
 
-  ret = parse_single_int_val( label_to_values, "TRIG_CONFIG3", config->TRIG_CONFIG3, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
+  //ret = parse_single_int_val( label_to_values, "TRIG_CONFIG3", config->TRIG_CONFIG3, ignore_missing ) ;
+  //if( (ignore_missing==0 && ret==1) || (ret<0) )   return -30;
 
-  ret = parse_single_int_val( label_to_values, "GROUPMODE_K7", config->GROUPMODE_K7, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
+  ret = parse_single_int_val( label_to_values, "GROUPMODE_FIP", config->GROUPMODE_FIP, ignore_missing ) ;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -31;
 
   ret = parse_single_int_val( label_to_values, "GATE_LENGTH", config->GATE_LENGTH, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -11;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -32;
 
   ret = parse_single_int_val( label_to_values, "VETO_MODE", config->VETO_MODE, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -33;
    
   ret = parse_single_int_val( label_to_values, "DYNODE_LENGTH", config->DYNODE_LENGTH, ignore_missing ) ;
-  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -9;
-  
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -34;
  
+  ret = parse_single_int_val( label_to_values, "TTCL_APPR_WINDOW", config->TTCL_APPR_WINDOW, ignore_missing ) ;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )   return -35;
+ 
+
+
   //unsigned int MOD_U4, MOD_U3, MOD_U2, MOD_U1, MOD_U0;
 
   // *************** channel parameters ************************************
@@ -953,6 +961,18 @@ int init_PixieNetFippiConfig_from_file( const char * const filename,
   if(ret==0) 
     for( int i = 0; i < NCHANNELS; ++i )
       config->CHANNEL_CSRC[i] = SetOrClrBit(9, config->CHANNEL_CSRC[i], bits[i]);  
+        
+  ret = parse_multiple_bool_val( label_to_values, "CCSRC_SIMADC_10", bits, ignore_missing ) ;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )    return -37;
+  if(ret==0) 
+    for( int i = 0; i < NCHANNELS; ++i )
+      config->CHANNEL_CSRC[i] = SetOrClrBit(10, config->CHANNEL_CSRC[i], bits[i]);   
+
+  ret = parse_multiple_bool_val( label_to_values, "CCSRC_GATEADC_11", bits, ignore_missing ) ;
+  if( (ignore_missing==0 && ret==1) || (ret<0) )    return -37;
+  if(ret==0) 
+    for( int i = 0; i < NCHANNELS; ++i )
+      config->CHANNEL_CSRC[i] = SetOrClrBit(11, config->CHANNEL_CSRC[i], bits[i]);  
   
 
       // --------------- other channel parameters -------------------------------------
@@ -1112,7 +1132,7 @@ int init_PixieNetFippiConfig_from_file( const char * const filename,
   ret = parse_multiple_int_val( label_to_values, "EHI", config->EHI, ignore_missing );
   if( (ignore_missing==0 && ret==1) || (ret<0) )  return -39;
 
-  ret = parse_multiple_int_val( label_to_values, "GROUPMODE_FIP", config->GROUPMODE_FIP, ignore_missing );
+  ret = parse_multiple_int_val( label_to_values, "GROUPMODE_CH", config->GROUPMODE_CH, ignore_missing );
   if( (ignore_missing==0 && ret==1) || (ret<0) )  return -39;
 
  

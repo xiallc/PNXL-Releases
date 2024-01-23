@@ -646,6 +646,9 @@ Function PSA_ReadEvent()
 	
 	if(iCFDresult<0)
 		ph = Eventvalues[31] / (Eventvalues[31] + Eventvalues[33] )
+		if(LMeventheader[iCFDinfo]==1)
+		//	ph = ph-1 //ph + 1?
+		endif	
 		Eventvalues[34] = ph
 		EventvalueNames[34] = "CFD ratio "
 		cfd = ph * 16384
@@ -659,6 +662,7 @@ Function PSA_ReadEvent()
 	
 	
 	if(runtype==0x400) 
+	
 		wave LMfileheader =  root:pixie4:LMfileheader
 		wave LMeventheader = root:pixie4:LMeventheader
 
@@ -681,6 +685,7 @@ Function PSA_ReadEvent()
 		EventvalueNames[32] = "Q0 raw/4 "
 		Eventvalues[33] =  LMeventheader[20]	// Q1 raw/4
 		EventvalueNames[33] = "Q1 raw/4 "
+		
 	endif
 	
 	if( (runtype==0x404) )
@@ -719,20 +724,41 @@ Function PSA_ReadEvent()
 		
 		Eventvalues[35] =  LMeventheader[36]* 65536 + LMeventheader[35]
 		EventvalueNames[35] = "Ext TS  (FPGA) "
-		
 			
+	endif
+	
+	if(runtype==0x410) 
+	
+		wave LMfileheader =  root:pixie4:LMfileheader
+		wave LMeventheader = root:pixie4:LMeventheader
+
+		Eventvalues[8] = LMeventheader[9]	  	// channel number
+		if(Allchannels)
+			PWchannel = Eventvalues[8]	// automatically pick the current channel (won't work for 0x402, 503)
+		endif
+	
+//		Eventvalues[2] = LMeventheader[10]	// amplitude from DSP       	UserRetVal +1
+//		Eventvalues[3] = LMeventheader[12]	// baseline sum from DSP  	UserRetVal +2
+//		Eventvalues[4] = LMeventheader[13]	// Q0 sum from DSP			UserRetVal +3
+//		Eventvalues[5] = LMeventheader[14]	// Q1 sum from DSP			UserRetVal +4
+//		Eventvalues[6] = LMeventheader[15]	// PSA Value
+		
+		Eventvalues[30] =  LMeventheader[13]	// debug
+		EventvalueNames[30] = "0x410 PSA max "		
+		Eventvalues[31] =  LMeventheader[16]
+		EventvalueNames[31] = "0x410 PSA Q0 raw"	
+		Eventvalues[32] =  LMeventheader[17]	// LMeventheader[19]	// Q0 raw/4
+		EventvalueNames[32] = "0x410 PSA Q1 raw"
+
+		
 	endif
 	
 	if( (runtype==0x116) )
 	
 		wave LMfileheader =  root:pixie4:LMfileheader
-		wave LMeventheader = root:pixie4:LMeventheader116
+		wave LMeventheader = root:pixie4:LMeventheader
 
 		variable off=0
-		if((runtype==0x404) )
-			off = 3				// in 0x404, words are shifted down by 3  
-		endif
-
 		
 		Eventvalues[8] = LMeventheader[0+off] & 0x000F	  	// channel number
 		if(Allchannels)
@@ -749,19 +775,19 @@ Function PSA_ReadEvent()
 	//	Eventvalues[6] = 0 //	Eventvalues[4] / Eventvalues[5]	// PSA Value  Q1/Q0
 		
 		Eventvalues[30] =  LMeventheader[19+off]	// debug: maximum
-		EventvalueNames[30] = "maximum (FPGA)"	
+		EventvalueNames[30] = "P16 0x100 maximum (FPGA)"	
 			
 		Eventvalues[31] =  LMeventheader[9+off]* 65536 + LMeventheader[8+off]
-		EventvalueNames[31] = "Q0 full sum (FPGA) "	
+		EventvalueNames[31] = "P16 0x100 Tsum (FPGA) "	
 		
 		Eventvalues[32] =  LMeventheader[11+off]* 65536 + LMeventheader[10+off]
-		EventvalueNames[32] = "Q1 full sum  (FPGA) "
+		EventvalueNames[32] = "P16 0x100 Lsum (FPGA) "
 		
 		Eventvalues[33] =  LMeventheader[13+off]* 65536 + LMeventheader[12+off]
-		EventvalueNames[33] = "Q2 full sum (FPGA) "	
+		EventvalueNames[33] = "P16 0x100 Gsum (FPGA) "	
 		
 		Eventvalues[34] =  LMeventheader[15+off]* 65536 + LMeventheader[14+off]
-		EventvalueNames[34] = "Q3 full sum  (FPGA) "
+		EventvalueNames[34] = "P16 0x100 baseline  (FPGA) "
 		
 		Eventvalues[35] =  LMeventheader[17+off]* 65536 + LMeventheader[16+off]
 		EventvalueNames[35] = "Ext TS  (FPGA) "
@@ -1014,12 +1040,13 @@ Function PSA_ReadEvent()
 		duplicate/o trace, cfdtrace
 		//Variable off
 		Variable nspc =2 // number of samples per cycle
+		Variable Znd	= 1 // if 1, compute "2nd" CFD on odd samples
 		Variable arm, latch
 		
 		// a) fast trigger filter
 		off=2*CFD_FL+CFD_FG-1
 		fftrace = nan
-		k=off
+		k=off+Znd
 		do
 			fftrace[k]=0
 			for(j=0;j<CFD_FL*nspc;j+=nspc)
@@ -1032,25 +1059,28 @@ Function PSA_ReadEvent()
 		
 		// b) delay, scale and subtract
 		cfdtrace = nan
-		k=off
+		k=off+Znd
 		arm = 0
 		latch =0
 		do
 			cfdtrace[k] = fftrace[k] * (8-CFD_scale)/8 - fftrace[k-CFD_delay]
+				
 			if( (cfdtrace[k]>0) && (cfdtrace[k] > CFD_threshold) )
 				arm=1
 			endif
+			
+			// c) find zero crossing
 			if( (cfdtrace[k]<0) && (arm==1) && (latch==0))
 	
-				Eventvalues[35] =  cfdtrace[k-nspc]
-				EventvalueNames[35] = "Igor CFD val 1 "
+				Eventvalues[36] =  cfdtrace[k-nspc]
+				EventvalueNames[36] = "Igor CFD val 1 "
 				
-				Eventvalues[36] =  abs(cfdtrace[k])
-				EventvalueNames[36] = "Igor CFD val 2 (positive) "
+				Eventvalues[37] =  abs(cfdtrace[k])
+				EventvalueNames[37] = "Igor CFD val 2 (as positive) "
 				
-				ph = Eventvalues[35] / (Eventvalues[35] + abs(Eventvalues[36]) )
-				Eventvalues[37] = ph				
-				EventvalueNames[37] = "Igor CFD ratio "
+				ph = Eventvalues[36] / (Eventvalues[36] + abs(Eventvalues[37]) )
+				Eventvalues[38] = ph				
+				EventvalueNames[38] = "Igor CFD ratio "
 				latch = 1
 				
 			endif
@@ -1058,8 +1088,6 @@ Function PSA_ReadEvent()
 			k+=nspc
 		while(k<TL)
 		
-		
-		// c) find zero crossing
 		
 
 	endif

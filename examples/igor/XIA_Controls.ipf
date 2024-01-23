@@ -177,6 +177,59 @@ Function Pixie_Ctrl_DAQ1clk(ctrlName) : ButtonControl
 	
 End
 
+//########################################################################
+//
+//	Pixie_Ctrl_CommonCheckBox:
+//		Handle calls from checkbox controls (typ. radio buttons)
+//
+//########################################################################
+Function Pixie_Ctrl_CommonCheckBox(ctrlName,checked) : CheckBoxControl
+	String ctrlName
+	Variable checked
+	
+	NVAR CFD_Mode_online = root:LM:CFD_Mode_online	// select from online, Igor from traces, Igor from 4 raw, etc 
+	NVAR CFD_Mode_4raw   = root:LM:CFD_Mode_4raw
+	NVAR CFD_Mode_Igorwf = root:LM:CFD_Mode_Igorwf
+	
+	if(cmpstr(ctrlName,"cfdmode_online")==0)
+		if(checked)
+			CFD_Mode_online = 1
+			CFD_Mode_4raw   = 0
+			CFD_Mode_Igorwf = 0
+		else
+			CFD_Mode_online = 0
+			CFD_Mode_4raw   = 0
+			CFD_Mode_Igorwf = 0
+		endif		
+	endif
+	
+	if(cmpstr(ctrlName,"cfdmode_4raw")==0)
+		if(checked)
+			CFD_Mode_online = 0
+			CFD_Mode_4raw   = 1
+			CFD_Mode_Igorwf = 0
+		else
+			CFD_Mode_online = 0
+			CFD_Mode_4raw   = 0
+			CFD_Mode_Igorwf = 0
+		endif		
+	endif
+	
+	if(cmpstr(ctrlName,"cfdmode_igorwf")==0)
+		if(checked)
+			CFD_Mode_online = 0
+			CFD_Mode_4raw   = 0
+			CFD_Mode_Igorwf = 1
+		else
+			CFD_Mode_online = 0
+			CFD_Mode_4raw   = 0
+			CFD_Mode_Igorwf = 0
+		endif		
+	endif
+		
+	
+End
+
 
 //########################################################################
 //
@@ -247,6 +300,17 @@ Function Pixie_Ctrl_CommonButton(ctrlName) : ButtonControl
 			return(0)
 			break
 		
+		Case "Plot_Tdiff_dTvsEv":
+			Execute "Pixie_Plot_Tdiff_dTvsEv()"
+			break
+			
+		Case "Plot_Tdiff_EvsE":
+			Execute "Pixie_Plot_Tdiff_EvsE()"
+			break
+			
+		Case "Plot_Tdiff_dTvsE":
+			Execute "Pixie_Plot_Tdiff_dTvsE()"
+			break
 	
 		Case "Plot_Thisto":
 			Execute "Pixie_Plot_Thisto()"
@@ -1238,7 +1302,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 	if(cmpstr(ctrlName,"webreadsettings")==0)
 		cmd = "cgireadsettings.cgi"									// specify command
 		mo = ModNum														// no loop for reading settings
-		Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,0)		// execute
+		Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,4)		// execute
 
 		// assign values to local arrays
 		for(ch=0;ch<MaxNchannels;ch+=1)
@@ -1282,7 +1346,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		endfor
 		
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,0)		// execute
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,10)		// execute
 		endfor
 		
 		// update the VOFFSET parameter
@@ -1293,7 +1357,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		endfor
 		
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,0)		// execute
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,10)		// execute
 		endfor
 		
 		// update the ANALOG_GAIN parameter
@@ -1304,7 +1368,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		endfor
 		
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,0)		// execute
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,10)		// execute
 		endfor
 		
 		// update the DIG_GAIN parameter
@@ -1315,7 +1379,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		endfor
 		
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,0)		// execute
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,10)		// execute
 		endfor
 		
 		// update the TAU parameter
@@ -1326,7 +1390,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		endfor
 		
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,0)		// execute
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,10)		// execute
 		endfor
 		
 		// update the RUN_TYPE parameter
@@ -1335,7 +1399,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		cmdwrite = cmdwrite + chval
 		
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,0)		// execute
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,10)		// execute
 		endfor
 		
 		// update the REQ_RUNTIME parameter
@@ -1344,7 +1408,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		cmdwrite = cmdwrite + chval
 		
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,0)		// execute
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,10)		// execute
 		endfor
 		
 		// update the WR_RUNTIME_CTRL parameter
@@ -1353,7 +1417,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		cmdwrite = cmdwrite + chval
 		
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,0)		// execute
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,10)		// execute
 		endfor
 		
 		// update the DATA_FLOW parameter
@@ -1362,7 +1426,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		cmdwrite = cmdwrite + chval
 		
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,0)		// execute
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmdwrite,10)		// execute
 		endfor
 		
 		return(0)
@@ -1372,7 +1436,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 	if(cmpstr(ctrlName,"webprogfippi")==0)	
 		cmd = "progfippi.cgi"
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,0)
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,10)
 		endfor
 		return(0)
 	endif
@@ -1387,7 +1451,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		endif
 		
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,0)
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,0)		// no 10s timeout here
 		endfor
 		return(0)
 	endif
@@ -1396,7 +1460,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 	if(cmpstr(ctrlName,"webrefresh")==0)
 		cmd = "cgiprinttraces.cgi"	
 		mo = ModNum														// no loop for reading traces
-		Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,0)		// execute
+		Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,10)		// execute
 		
 		// save to local file
 		Open/D=2/M="Save File As..."/T="????" /P=home refNum as "localdataXL.csv"
@@ -1617,7 +1681,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 			// 1. get WR time, WR_RT_CTRL
 				cmd = "pollcsr.cgi?MODE=5"									// specify command. // PNXL uses query string
 				mo = ModNum														// no loop for reading CSR
-				Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,0)		// execute
+				Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,10)		// execute
 				print ServerResponse
 				WR_TM_TAI = str2num(ServerResponse)
 				
@@ -1646,7 +1710,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		
 		//cmd = "udpena.cgi"
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,0)
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,10)
 		endfor
 		
 		return(0)
@@ -1663,7 +1727,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		
 		cmd = "udpdis.cgi"
 		for(mo=Mstart; mo<Mend;mo+=1)
-			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,0)
+			Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,10)
 		endfor
 		
 		return(0)
@@ -1681,7 +1745,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 			//cmd = "pollcsr.cgi"
 		endif
 		mo = ModNum														// no loop for reading CSR
-		Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,0)		// execute
+		Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,10)		// execute
 		print ServerResponse
 		Zynq_CSR = str2num(ServerResponse)
 	endif
@@ -1695,7 +1759,7 @@ Function Pixie_Ctrl_WebIO(ctrlName) : ButtonControl
 		endif
 		cmd = "pollcsr.cgi?MODE=5"									// specify command. // PNXL uses query string
 		mo = ModNum														// no loop for reading CSR
-		Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,0)		// execute
+		Pixie_IO_WebRequest(MZ_ip[mo],MZ_user[mo],MZ_pw[mo],cmd,10)		// execute
 		print ServerResponse
 		WR_TM_TAI = str2num(ServerResponse)
 	endif

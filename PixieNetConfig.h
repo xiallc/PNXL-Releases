@@ -161,7 +161,7 @@ typedef struct PixieNetFippiConfig {
 
   // ***** end of system parameters ********************************************
 
-  /** Control bits for whole module.
+  /** Control bits for whole module.    TODO: document
       Typical value of 2048.
       Module control bit A.0: report only one event per Coinc. Window (LM402),
       Module control bit A.5: enables MMCX input as global Veto, NYI
@@ -185,27 +185,27 @@ typedef struct PixieNetFippiConfig {
 
    /** The module ends its spill when this number of events has been acquired. 
    */
-   unsigned int MAX_EVENTS;
+   //unsigned int MAX_EVENTS;
   
   /** Coincidence pattern for accepted between channels.
       0x0008 require channels 0 and 1 to be in coincidence.
       0x1000 require channels 2 and 3 to be in coincidence.
       0xFFFE = 65534 lets any hit pattern through.
    */
-  unsigned int COINCIDENCE_PATTERN;
+  //unsigned int COINCIDENCE_PATTERN;
  
   /** Time between triggers, in micro-seconds, to consider the two hits to be a
       coincidence. 
       Typical value would be 0.040
    */
-  double COINCIDENCE_WINDOW;
+  //double COINCIDENCE_WINDOW;
            
   
   /** If set to true, resets FPGA/DAC timers. */
   unsigned int SYNC_AT_START;
   
    /* reseved for daq resume */
-   unsigned int RESUME;
+   //unsigned int RESUME;
 
      /** The clock decimation factor for calculating trigger and energy values.
       May be from 1 to 6.  
@@ -217,18 +217,15 @@ typedef struct PixieNetFippiConfig {
 
  /* Enable sending fast trigger to backplane # 
     probably unused */
- unsigned int FASTTRIG_BACKPLANEENA;
+ //unsigned int FASTTRIG_BACKPLANEENA;
   
 
   /* General trigger configuration */ 
-  unsigned int TRIG_CONFIG0;
-  unsigned int TRIG_CONFIG1;
-  unsigned int TRIG_CONFIG2;
-  unsigned int TRIG_CONFIG3;
-  unsigned int GROUPMODE_K7;
+  unsigned int GROUPMODE_FIP;
   unsigned int GATE_LENGTH;
   unsigned int VETO_MODE;
   unsigned int DYNODE_LENGTH;
+  unsigned int TTCL_APPR_WINDOW;
 
   
   //Currently unused parameters.
@@ -268,6 +265,9 @@ typedef struct PixieNetFippiConfig {
    CCSRC_RBADDIS_06        // disable the out-of-range test and rejection
    CCSRC_PAUSEPILEUP_07    // pause pilup inspection for a short time after trigger
    CCSRC_LOCAL_ENERGY_09   // Use local trigger for E filter capture even in group trigger mode 
+   CCSRC_SIMADC_10         // if 1, replace ADC data with simulated data stream
+   CCSRC_GATEADC_11        // if 1, replace lower 5 bit of ADC data with trigger and gating info
+
 
 
    */
@@ -327,7 +327,7 @@ typedef struct PixieNetFippiConfig {
   unsigned int EMIN[NCHANNELS];              //  minimum Energy (in final DSP units) for histogramming or LM output
   unsigned int ELO[NCHANNELS];               // When E between ELO and EHI and enabled, issue logic pulse on MMCX output of length VETO_STRETCH
   unsigned int EHI[NCHANNELS];  
-  unsigned int GROUPMODE_FIP[NCHANNELS];         // group trigger options
+  unsigned int GROUPMODE_CH[NCHANNELS];         // group trigger options
 
 } PixieNetFippiConfig;
 

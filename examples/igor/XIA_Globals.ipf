@@ -15,7 +15,7 @@ Macro Pixie_InitGlobals()
 	// Create a new folder pixie4
 	NewDataFolder/o root:pixie4
 	
-	Variable/G root:pixie4:ViewerVersion = 0x638		// Pixie4 Viewer version set above in version check
+	Variable/G root:pixie4:ViewerVersion = 0x63E		// Pixie4 Viewer version set above in version check
 	
 	///////////////////////////////////////////////////////////// 
 	// New Pixie-Net Variables
@@ -24,7 +24,7 @@ Macro Pixie_InitGlobals()
 	String/G root:pixie4:MZip = "192.168.1.59"
 	Variable/G root:pixie4:evsize = 332
 	Variable/G root:pixie4:localfile = 0
-	Variable/G root:pixie4:webops = 0
+	Variable/G root:pixie4:webops = 1
 	Variable/G root:pixie4:messages = 1
 	Variable/G root:pixie4:warnings = 1
 	Variable/G root:pixie4:RunType = 0x500
@@ -41,7 +41,6 @@ Macro Pixie_InitGlobals()
 	String/G root:pixie4:parametervalues
 	make/o/n=32/u/i root:pixie4:LMfileheader
 	make/o/n=32/u/i root:pixie4:LMeventheader
-	make/o/n=20/u/i root:pixie4:LMeventheader116		// TODO: check if still needed
 	make/o/n=23/u/i root:pixie4:LMeventheader104		// TODO: check if still needed
 	make/o/n=1/u/i root:pixie4:LMtrace
 	Pixie_Make_LMheadernames400()
@@ -430,8 +429,20 @@ Function Pixie_Tdiff_globals()
 	Variable/G root:LM:BinsizeTB = 8
 	Variable/G root:LM:NbinsTC = 256
 	Variable/G root:LM:BinsizeTC = 8
-	make/o/n=1 root:LM:ThistoA, root:LM:ThistoB, root:LM:ThistoC
-
+	make/o/n=1 root:LM:ThistoA, root:LM:ThistoB, root:LM:ThistoC	
+	
+	Variable/G  root:LM:CFD_Mode_online	// select from online, Igor from traces, Igor from 4 raw, etc 
+	Variable/G  root:LM:CFD_Mode_4raw
+	Variable/G  root:LM:CFD_Mode_Igorwf
+	
+	Variable/G  root:LM:DiffA_cut
+	Variable/G  root:LM:ElowP = 8200			// limits for energy cut
+	Variable/G  root:LM:EhighP = 8900	
+	Variable/G  root:LM:ElowN = 7200
+	Variable/G  root:LM:EhighN = 8000
+	
+	
+	
 	Pixie_Make_Tdiffwaves(1)	// makes waves for the LM header values
 	
 	// variables for trace processing	
@@ -514,6 +525,9 @@ Function Pixie_SetTimeScales()
 			TSscale = 1	
 		elseif((ModuleType&0x0FF0)==0x0190)
 			WFscale = 4
+			TSscale = 1
+		elseif((ModuleType&0x0FF0)==0x01A0)
+			WFscale = 2
 			TSscale = 1
 		elseif((ModuleType&0x0FF0)==0x0990)		// Pixie-Net
 			WFscale = 4
@@ -814,6 +828,7 @@ Function Pixie_Make_LMheadernames400()
 	evsize = LMfileheader[8]	* BlkSize		// assuming all are the same as ch.0 
 	runtype = LMfileheader[2]
 	
+	
 	Nvar ModuleType = root:pixie4:ModuleType
 	ModuleType = LMfileheader[iMType]
 	Pixie_SetTimeScales()
@@ -982,6 +997,17 @@ Function Pixie_Make_LMheadernames404()
 	LMheadernames[37] = "watermark"
 	LMheadernames[38] = "watermark"
 	
+	LMheadernames[47] = "EvtPattern "
+	LMheadernames[48] = "EvtInfo "
+	LMheadernames[49] = "NumTraceBlks "
+	LMheadernames[50] = "  "
+	LMheadernames[51] = "TrigTimeLO "
+	LMheadernames[52] = "TrigTimeMI "
+	LMheadernames[53] = "TrigTimeHI "
+	LMheadernames[54] = "TrigTimeX "
+	LMheadernames[55] = "Energy "	
+	LMheadernames[56] = "ChanNo "
+	
 	// set the indices
 	Nvar iMType = root:pixie4:iMType 
 	Nvar iHitL  = root:pixie4:iHitL 
@@ -1121,6 +1147,8 @@ Function Pixie_Make_LMheadernames410()
 	BlkSize = 32
 	evsize = LMfileheader[5]*BlkSize  + LMfileheader[0]// assuming all are the same as ch.0 
 	runtype = LMfileheader[2]
+	//evsize = LMfileheader[5]*BlkSize/8  + LMfileheader[0]		// assuming all are the same as ch.0 // debug, multi-UDP events
+
 	
 	Nvar ModuleType = root:pixie4:ModuleType
 	ModuleType = LMfileheader[iMType]

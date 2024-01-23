@@ -1,4 +1,4 @@
-# Pixie-Net XL Igor Package Version 6.38
+# Pixie-Net XL Igor Package Version 6.3E
 Provides an interface to the WaveMetrics  Igor Pro interface. 
 
 ## Prerequisites

@@ -84,7 +84,7 @@ $(function(){
  	  $("#adjust").click(function(){		// function for  adjust button
 	     alert("This function takes ~30 to complete. Please click OK to continue and wait for next message.");
 		  document.getElementById("output").innerHTML="waiting ...";
-		  $.get("rampdacs.cgi", function (data) {	//jQuery get function executes rampdacs on Pixie-Net -> sets offset to ~2000 but does not change ini file
+		  $.get("findsettings.cgi", function (data) {	//jQuery get function executes findsettings on Pixie-Net -> sets offset to BL% but does not change ini file
 				document.getElementById("output").innerHTML=data;
 				alert("Adjustment done. Refresh traces to see the offsets found. Manually update offset values on this page with the suggested voltages in the response");
 		 })  		// end get		

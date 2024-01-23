@@ -33,8 +33,11 @@
  * SUCH DAMAGE.
  *----------------------------------------------------------------------*/
 
+// generic
+#define PI					3.14159265358979
+
 // system constants
-#define PS_CODE_VERSION                   0x033B
+#define PS_CODE_VERSION                   0x033E
 #define PN_BOARD_VERSION_12_250_A         0xA990    
 #define PN_BOARD_VERSION_12_250_B         0xA991  
 #define PN_BOARD_VERSION_12_250_B_PTP     0xA981  
@@ -49,6 +52,7 @@
 #define PNXL_DB06_16_250                  0x00600000   // value for DB06 with 16/250 MHZ ADC
 #define PNXL_DB06_14_500                  0x00700000   // value for DB06 with 14/500 MHZ ADC
 #define PNXL_DB08_14_250                  0x00800000   // value for DB08 with 14/250 MHZ ADC
+#define PNXL_DB10_12_500                  0x00A00000   // value for DB06 with 14/500 MHZ ADC
 #define PNXL_MB_REVA                      0x00000000   // value for Rev A Main board
 #define PNXL_MB_REVB                      0x00010000   // value for Rev B Main board
 #define PNXL_MB_REVC                      0x00020000   // value for Rev C Main board
@@ -64,6 +68,7 @@
 #define ADC_CLK_MHZ_DB06_250              250
 #define ADC_CLK_MHZ_DB06_500              500
 #define ADC_CLK_MHZ_DB08_250              250
+#define ADC_CLK_MHZ_DB10_500              500
 
 #define SYSTEM_CLOCK_MHZ_DB01              75
 #define SYSTEM_CLOCK_MHZ_MOST             125
@@ -121,7 +126,7 @@
 #define MAX_TH                            65535
 #define GAIN_HIGH                         5             // gain limits  Pixie-Net
 #define GAIN_LOW                          2
-#define MAX_TL                            4092          // max length of captured waveform and pre-trigger delay
+#define MAX_TL                            4096          // max length of captured waveform and pre-trigger delay
 #define MULT_TL                           32            // trace lenght must be a multiple of this number
 #define TWEAK_UD                          0             // adjustment to pre-trigger delay for internal pipelining
 #define MAX_BFACT                         16
@@ -175,7 +180,7 @@
 #define TRACEDELAY_MAX                    1023
 #define CHANTRIGSTRETCH_MAX               4095
 #define CHANTRIGSTRETCH_MIN               1
-#define MIN_XDT                           2            // in samples
+#define MIN_XDT                           1            // in samples
 #define MAX_XDT                           16777215     // in samples
 
 
@@ -321,10 +326,11 @@
 #define AK7_RUNTYPE           0x26        // inform FPGA of Run type
 #define AK7_USR_PCK_DATA      0x27        // arbitray word to include into 0x411 header
 #define AK7_TTCL_STNC_TIME    0x28        // specify the time for synchronization
-#define AK7_TTCL_APPR_WINDOW  0x2A        // length of TTCL acceptance window 
+#define AK7_TTCL_APPR_WINDOW  0x2B        // length of TTCL acceptance window 
 #define AK7_GROUPMODE_AB      0x2C        // number specifying the trigger distribution mode for channels
-#define AK7_GROUPMODE_K7      0x30        // number specifying the trigger distribution mode for Kintex
+#define AK7_GROUPMODE_FIP     0x30        // number specifying the trigger distribution mode for Kintex
 #define AK7_GATE_LENGTH       0x31        // gating time window (when generated internally from other signals)
+#define AK7_SCSRINC           0x32        // extended CSR register
 
 #define AK7_P16REG00          0x40
 #define AK7_P16REG01          0x44
@@ -437,12 +443,15 @@
 #define CCSRC_PAUSE_PILEUP    7           // if 1, pause pileup inspection briefly after trigger
 #define CCSRC_LOCAl_ENERGY    9           // if 1, use local trigger for energy filter capture
 #define CCSRC_SIM_ADC         10          // if 1, replace ADC data with simulated data stream
+#define CCSRC_GATE_ADC        11          // if 1, replace lower 5 bit of ADC data with trigger and gating info
+
 
 
 // other CSR bits
 #define WRC_RUNTIME_K7        0           // if set, Enable WR run time control in Kintex
 #define WRC_RUNTIME_PZ        1           // if set, Enable WR run time control in PicoZed
 #define MCSRA_P4ERUNSTATS     1           // if set, use P4e convention for live time etc
+#define MCSRA_FP_TTCL         3           // option to use front panel signal as start of TCTL acceptance window     
 #define MCSRA_FP_COUNT        4           // option to count FP pulses as ext_ts, else local clock (or WR)     
 #define MCSRA_FP_VETO         5           // option to use FP as VETO                                          
 #define MCSRA_FP_EXTCLR       6           // option to use FP to clear ext_ts                                  
@@ -472,8 +481,10 @@
 #define FiPPI_GOOD            29          // good-channel bit - 1: channel data will be read out; 0: channel data will not be read out
 #define FiPPI_PILEUPCTRL      30
 #define FiPPI_INVERSEPILEUP   31
-#define FiPPI_LOCAl_ENERGY    6           // bit 5 in the "high" portion of Reg 2
-#define FiPPI_SIM_ADC         7
+#define FiPPI_LOCAl_ENERGY    5           // bit 5 in the "high" portion of Reg 2
+#define FiPPI_SIM_ADC         6
+#define FiPPI_GATE_ADC        7
+
 
 
 // other FW control register bits
@@ -482,7 +493,8 @@
 #define SCSR_AUTOUDP          3           // if set, LM data is sent out via UDP without interaction with C code
 #define SCSR_AUTOQSPI         4           // if set, E is sent out via QSPI without interaction with C code
 #define SCSR_HDRENA           5           // if set, store LM output data in header memory (else only E in E fifo)
-#define SCSR_DMCONTROL        6           // if set, Ethernet output data is held in SDRAM FIFO until DM approves
+#define SCSR_DMCONTROL        6           // if set, Ethernet output data is held in SDRAM FIFO until DM approves [discontinued]
+#define SCSR_FP_TTCL          6           // option to use front panel signal as start of TCTL acceptance window       
 #define SCSR_TGTEST           7           // reserved
 #define SCSR_FP_COUNT         8           // option to count FP pulses as ext_ts, else local clock (or WR)     
 #define SCSR_FP_VETO          9           // option to use FP as VETO                                          
