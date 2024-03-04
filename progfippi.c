@@ -668,7 +668,6 @@ int main(void) {
          printf("Invalid TAU = %f, must be positive\n",fippiconfig.TAU[ch]);
          return -5800-ch;
       }
-      //printf("tau ch %d = %5.4f\n", ch, fippiconfig.TAU[ch]);
 
       if( (fippiconfig.XDT[ch] < ((double)MIN_XDT/FILTER_CLOCK_MHZ)) || (fippiconfig.XDT[ch] > ((double)MAX_XDT/FILTER_CLOCK_MHZ)) ) {
          printf("Invalid XDT = %f us, must be at least %f us and less than %f us\n",fippiconfig.XDT[ch],(double)MIN_XDT/FILTER_CLOCK_MHZ,(double)MAX_XDT/FILTER_CLOCK_MHZ );
@@ -742,8 +741,8 @@ int main(void) {
          printf("Invalid EXTERN_DELAYLEN = %f, must be at least %f us\n",fippiconfig.EXTERN_DELAYLEN[ch], (double)EXTDELAYLEN_MIN/FILTER_CLOCK_MHZ);
          return -7300-ch;
       }
-      if(fippiconfig.EXTERN_DELAYLEN[ch] > EXTDELAYLEN_MAX_REVF/FILTER_CLOCK_MHZ)  {
-         printf("Invalid EXTERN_DELAYLEN = %f, must be less than %f us\n",fippiconfig.EXTERN_DELAYLEN[ch], (double)EXTDELAYLEN_MAX_REVF/FILTER_CLOCK_MHZ);
+      if(fippiconfig.EXTERN_DELAYLEN[ch] > EXTDELAYLEN_MAX/FILTER_CLOCK_MHZ)  {
+         printf("Invalid EXTERN_DELAYLEN = %f, must be less than %f us\n",fippiconfig.EXTERN_DELAYLEN[ch], (double)EXTDELAYLEN_MAX/FILTER_CLOCK_MHZ);
          return -7400-ch;
       }  
     
@@ -1377,7 +1376,7 @@ int main(void) {
          
          // package
          reglo = (int)(fippiconfig.FTRIGOUT_DELAY[ch]*FILTER_CLOCK_MHZ);         //  FtrigoutDelay goes into [8:0] of FipReg5             // in us                                                                                                            
-         reghi = (int)(fippiconfig.EXTERN_DELAYLEN[ch]*FILTER_CLOCK_MHZ);        //Store EXTERN_DELAYLEN in bits [8:0] of FipReg5 hi      // in us      
+         reghi = (int)(fippiconfig.EXTERN_DELAYLEN[ch]*FILTER_CLOCK_MHZ/4);      // Store EXTERN_DELAYLEN in bits [8:0] of FipReg5 hi, FPGA delays by 4x the value written     // in us      
          /*   bogus trace delay computation from P16 C code?
          mval = SL[ch]+SG[ch];                                                   // psep       TODO: check trace related delays. 
          mval = (mval-1) << SFR;                                                 // trigger delay
@@ -2098,7 +2097,7 @@ int main(void) {
           
          // specify clock delays (specific to each ADC / FW)
          mval = 15; // default  
-         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250)  mval = 20;   // ADC clk delay 
+         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250)  mval = 10;   // ADC clk delay 
          if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)  mval = 15;   // ADC clk delay 
          if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250)  mval = 10;   // ADC clk delay         
          if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)  mval = 20;   // ADC clk delay    
@@ -2156,10 +2155,10 @@ int main(void) {
         //     switch ADC output to ramp :        data/addr = 0x0F / 0x000D 
         //     switch ADC output to signal :      data/addr = 0x00 / 0x000D 
              
-        for( ch_k7 = 0; ch_k7 < 4 ; ch_k7 ++ )       // always program 4 ADC chips, most settings apply to both channels
+        for( ch_k7 = 0; ch_k7 < 4 ; ch_k7 ++ )       // always program 4 ADC chips (not channels!), most settings apply to both channels
         {
-          //mval = 0x0F;   // turn on ramp
-            mval = 0x04;   // turn on "checkerboard" 0xAAA/3555
+          //val = 0x0F;   // turn on ramp
+          //mval = 0x04;   // turn on "checkerboard" 0xAAA/3555
             mval = 0x00;     //turn off ramp
             ADCSPI_Write06(mapped, k7, ch_k7, 0x0D, mval); 
             // 8 bits for address only (upper 8 bits are control or all zero for this ADC)

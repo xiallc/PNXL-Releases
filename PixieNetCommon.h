@@ -76,6 +76,10 @@ extern "C"
   unsigned int ADCSPI_Read06(volatile unsigned int *mapped, unsigned int k7, unsigned int ch_k7, unsigned int addr);
   unsigned int ADCSPI_Read10(volatile unsigned int *mapped, unsigned int k7, unsigned int ch_k7, unsigned int addr);
 
+  double get_average (unsigned int *data, unsigned int numpnts);
+  double get_faverage (double *data, unsigned int numpnts);
+  double get_deviation (unsigned int *data, unsigned int numpnts, double avg);
+  
   int ramp_dacs(   volatile unsigned int *mapped,  // address space for MZ I/O
             unsigned int revsn,                    // HW revision and s/n
             unsigned int DACstart,                 // starting value of DAC ramp

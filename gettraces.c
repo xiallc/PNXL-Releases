@@ -58,10 +58,13 @@ int main(void) {
   int k,ch, k7, ch_k7;      // ch = abs ch. no; ch_k7 = ch. no in k7
   FILE * fil;
   unsigned int adc[NCHANNELS][NTRACE_SAMPLES];
+  unsigned int trace[NTRACE_SAMPLES];
   unsigned int cs[N_K7_FPGAS] = {CS_K0,CS_K1};
   unsigned int GOOD_CH[NCHANNELS];
   unsigned int dt[NCHANNELS];
-  unsigned int revsn, NCHANNELS_PER_K7, NCHANNELS_PRESENT, mval;
+  unsigned int revsn, NCHANNELS_PER_K7, NCHANNELS_PRESENT, mval, mx, mxpos;
+  double   avg, std;
+  unsigned int verbose = 1;
 
 
   // *************** PS/PL IO initialization *********************
@@ -218,6 +221,39 @@ int main(void) {
       fprintf(fil,"\n");
    }
  
+   // brief analysis to see if there was a pulse
+   if(verbose)
+   {
+
+      for(ch=0;ch<NCHANNELS_PRESENT;ch++)
+      {
+         if(GOOD_CH[ch]==1)
+         {
+
+            mx = 0;
+            mxpos =0;
+            for( k = 0; k < NTRACE_SAMPLES; k ++ )
+            {
+               trace[k] = adc[ch][k];
+               if(trace[k]>mx)  
+               {
+                  mx = trace[k];    // pick maximum
+                  mxpos = k;        // note position
+               }
+            }  // end samples
+
+            avg = get_average(trace, NTRACE_SAMPLES);
+            std = get_deviation(trace, NTRACE_SAMPLES, avg);
+            printf( "Ch. %02d: avg=%6.2f, noise = %5.3f, max = %d @ %d, ampl %d\n", ch,avg, std, mx, mxpos, mx-(int)avg);
+
+         } //end good channel test
+         
+
+      } //end channels
+
+
+
+   }  // end verbose
  
  // clean up  
  fclose(fil);

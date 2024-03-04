@@ -214,11 +214,12 @@ int main(void) {
 
 
   // ----------- swap channels odd/even if necessary  -------------
-//  if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250) |
-//      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) |
-//      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) |
-//      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) )
-  if(1){
+  if( ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_12_250) |
+      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB02_14_250) |
+      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB04_14_250) |
+      ((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250) )
+      {
+//  if(0){
        printf("Checking for swapped channel pairs ...\n");
 
        // program one ADC output to known value, check if that comes through
@@ -423,7 +424,7 @@ int main(void) {
 
   if(1)     // optionally skip this (for debug)
   {
-      printf("Determining decay time TAU (correct polatity required) ...\n"); 
+      printf("Determining decay time TAU (correct polarity required) ...\n"); 
       printf(" Tau finder depends on current TAU (for min. fit range) and XDT (for ADC data)\n");
       printf(" Suggested TAU values for settings file (if 0, ignore)\n  ");
       for(k7=0;k7<N_K7_FPGAS;k7++)

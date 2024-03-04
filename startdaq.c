@@ -563,7 +563,8 @@ int main(void) {
                  if(passTTCL)  // only bin events that are acceptable  (also redundant)
                  {
                     bin = energy >> Binfactor[ch];
-                    if( (bin<MAX_MCA_BINS) && (over==0) ) {
+                    if( (bin<MAX_MCA_BINS) && (over==0) ) 
+                    {
                        mca[ch][bin] =  mca[ch][bin] + 1;	// increment mca
                        bin = bin >> WEB_LOGEBIN;
                        if(bin>0) wmca[ch][bin] = wmca[ch][bin] + 1;	// increment wmca
@@ -606,7 +607,8 @@ int main(void) {
                  if(passTTCL)  // only bin events that are acceptable
                  {
                     bin = energy >> Binfactor[ch];
-                    if( (bin<MAX_MCA_BINS) && (over==0) ) {
+                    if( (bin<MAX_MCA_BINS)  && (over==0) ) 
+                    {
                        mca[ch][bin] =  mca[ch][bin] + 1;	// increment mca
                        bin = bin >> WEB_LOGEBIN;
                        if(bin>0) wmca[ch][bin] = wmca[ch][bin] + 1;	// increment wmca

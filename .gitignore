@@ -53,8 +53,11 @@ rampdacs
 runstats
 startdaq
 testcsrK7
+ttcliic
+ttclinit
 ttclspi
 ttclsync
+ttcltime
 udpdis
 udpena
 udp-recv

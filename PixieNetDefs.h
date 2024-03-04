@@ -37,7 +37,7 @@
 #define PI					3.14159265358979
 
 // system constants
-#define PS_CODE_VERSION                   0x033E
+#define PS_CODE_VERSION                   0x033F
 #define PN_BOARD_VERSION_12_250_A         0xA990    
 #define PN_BOARD_VERSION_12_250_B         0xA991  
 #define PN_BOARD_VERSION_12_250_B_PTP     0xA981  
@@ -168,8 +168,8 @@
 #define VETOSTRETCH_MAX                   4095
 #define VETOSTRETCH_MIN                   1
 #define EXTDELAYLEN_MAX_REVBCD            255
-#define EXTDELAYLEN_MAX_REVF              511
-#define EXTDELAYLEN_MIN                   0
+#define EXTDELAYLEN_MAX                   2044
+#define EXTDELAYLEN_MIN                   4
 #define FASTTRIGBACKDELAY_MAX_REVBCD      255
 #define FASTTRIGBACKDELAY_MAX_REVF        511
 #define FASTTRIGBACKDELAY_MIN             0
