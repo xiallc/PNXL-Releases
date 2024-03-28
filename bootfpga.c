@@ -448,8 +448,10 @@ int main( int argc, const char **argv) {
       mval = 0;                          // write 0 to reset
       if( fippiconfig.CLK_CTRL == 0x0C)  mval = mval + (1<<SCSR_TTCL_CLK_OUT);              // choose TTCL clocking options (applied at boot only)
       if( fippiconfig.CLK_CTRL == 0x3C)  mval = mval + (1<<SCSR_TTCL_CLK_SL);               // choose TTCL clocking options (applied at boot only)
+      //mval = mval + (1<<SCSR_TTCL_CLK_OUT);
       mapped[AMZ_EXAFWR] = AK7_SCSRIN;    // write to  k7's addr to select register for write
       mapped[AMZ_EXDWR]  = mval;         // write lower 16 bit
+
 
   }
   usleep(100000);  //  clocks to LMK stabilize

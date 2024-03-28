@@ -104,7 +104,7 @@ int main(void) {
   unsigned int cs[N_K7_FPGAS] = {CS_K0,CS_K1};
   int ch, k7, ch_k7;    // loop counter better be signed int  . ch = abs ch. no; ch_k7 = ch. no in k7
   unsigned int revsn, NCHANNELS_PER_K7, NCHANNELS_PRESENT, NSAMPLES_PER_CYCLE;
-  unsigned int ADC_CLK_MHZ, FILTER_CLOCK_MHZ; //, SYSTEM_CLOCK_MHZ;
+  unsigned int ADC_CLK_MHZ, FILTER_CLOCK_MHZ; 
   unsigned long long mac;
   unsigned int dip, sip;
   unsigned int long_trace=0;
@@ -118,7 +118,7 @@ int main(void) {
     return 1;
   }
 
-  //Lock the PL address space so multiple programs cant step on eachother.
+  //Lock the PL address space so multiple programs can't step on each other.
   if( flock( fd, LOCK_EX | LOCK_NB ) )
   {
     printf( "Failed to get file lock on /dev/uio0\n" );
@@ -143,9 +143,8 @@ int main(void) {
   // ************************** check HW version ********************************
 
 
-  revsn = hwinfo(mapped,I2C_SELMAIN);    // some settings may depend on HW variants     
-  //SYSTEM_CLOCK_MHZ   =  SYSTEM_CLOCK_MHZ_MOST;     // defaults
-  FILTER_CLOCK_MHZ   =  FILTER_CLOCK_MHZ_MOST; 
+  revsn = hwinfo(mapped,I2C_SELMAIN);    // some settings may depend on HW variants         
+  FILTER_CLOCK_MHZ   =  FILTER_CLOCK_MHZ_MOST;     // defaults
 
 
   if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_75)
@@ -153,7 +152,6 @@ int main(void) {
       NCHANNELS_PRESENT =  NCHANNELS_PRESENT_DB01;
       NCHANNELS_PER_K7  =  NCHANNELS_PER_K7_DB01;
       ADC_CLK_MHZ       =  ADC_CLK_MHZ_DB01_75;             
-      //SYSTEM_CLOCK_MHZ  =  SYSTEM_CLOCK_MHZ_DB01;
       FILTER_CLOCK_MHZ  =  FILTER_CLOCK_MHZ_DB01;
   }
   if((revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB01_14_125)
@@ -968,7 +966,7 @@ int main(void) {
 
   
    // first, set CSR run control options   
-   mapped[AMZ_CSRIN] = 0x0000;               // all off)
+   mapped[AMZ_CSRIN] = 0x0000;               // all off
    mapped[AMZ_RUNCTRL] = 0x0000;             // MCA FIFO disabled
 
    mval =  fippiconfig.AUX_CTRL  & 0x00FF;   // lower bits from ini parameter. upper bits reserved for run options etc
@@ -1014,8 +1012,9 @@ int main(void) {
           (fippiconfig.RUN_TYPE == 0x411 ) )
          reglo = reglo + (1<<SCSR_HDRLONG);                                                        // long LM headers for runtype 0x404, 410, 411
       if( fippiconfig.SYNC_AT_START == 2)  reglo = reglo + (1<<SCSR_SYNC_AT_LIVE);                 // option to clear time stamps in K7 at falling edge of Live 
-       
-      // TODO: add TTCL clock control bits   SCSR_TTCL_CLK_OUT,  SCSR_TTCL_CLK_SL
+
+      if( fippiconfig.CLK_CTRL == 0x0C)  reglo = reglo + (1<<SCSR_TTCL_CLK_OUT);              // choose TTCL clocking options (applied at boot already)
+      if( fippiconfig.CLK_CTRL == 0x3C)  reglo = reglo + (1<<SCSR_TTCL_CLK_SL);               // choose TTCL clocking options (applied at boot already)
 
       mapped[AMZ_EXAFWR] = AK7_SCSRIN;    // write to  k7's addr to select register for write
       mapped[AMZ_EXDWR]  = reglo;        // write lower 16 bit
@@ -1257,7 +1256,7 @@ int main(void) {
          reglo = 1;     // halt bit =1
          reglo = reglo + setbit(fippiconfig.CHANNEL_CSRA[ch],CCSRA_POLARITY,      FiPPI_INVRT   );    
          if(ch_k7==2)  {
-            if( ((revsn & PNXL_DB_VARIANT_MASK)==PNXL_DB01_14_125 ) |            // DB01 channel 2 comes out inverted, compesate here
+            if( ((revsn & PNXL_DB_VARIANT_MASK)==PNXL_DB01_14_125 ) |            // DB01 channel 2 comes out inverted, compensate here
                 ((revsn & PNXL_DB_VARIANT_MASK)==PNXL_DB01_14_75  ) )
             {
                reglo = reglo ^ (1<<FiPPI_INVRT); 
@@ -1376,7 +1375,7 @@ int main(void) {
          
          // package
          reglo = (int)(fippiconfig.FTRIGOUT_DELAY[ch]*FILTER_CLOCK_MHZ);         //  FtrigoutDelay goes into [8:0] of FipReg5             // in us                                                                                                            
-         reghi = (int)(fippiconfig.EXTERN_DELAYLEN[ch]*FILTER_CLOCK_MHZ/4);      // Store EXTERN_DELAYLEN in bits [8:0] of FipReg5 hi, FPGA delays by 4x the value written     // in us      
+         reghi = (int)(fippiconfig.EXTERN_DELAYLEN[ch]*FILTER_CLOCK_MHZ/6);      // Store EXTERN_DELAYLEN in bits [8:0] of FipReg5 hi, FPGA delays by 6x the value written     // in us      
          /*   bogus trace delay computation from P16 C code?
          mval = SL[ch]+SG[ch];                                                   // psep       TODO: check trace related delays. 
          mval = (mval-1) << SFR;                                                 // trigger delay
@@ -1765,7 +1764,7 @@ int main(void) {
    } //end DB08
 
 
-   // DB06
+   // DB06, DB10
    // DB06 has 2 gains, 4 channels. Applied via I2C specific to each DB; 
    // Two opamps can be enabled with SW0 (gain 2) and SW1 (gain 5)
    // use 2.4 and 5.4 for easier compatibility to DB01
@@ -1973,7 +1972,7 @@ int main(void) {
    } //end DB01
 
    // ------------------ program gain bits, second DB ------------------
-   // Applies to DB01 and DB06; DB02 and DB04 ignore this. 
+   // Applies to DB01 and DB06 and DB10; DB02 and DB04 ignore this. 
    
    // I2C write for 4 channels
     mapped[AMZ_DEVICESEL] = CS_MZ;	  // select MZ controller
@@ -2101,9 +2100,10 @@ int main(void) {
          if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_14_500)  mval = 15;   // ADC clk delay 
          if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB06_16_250)  mval = 10;   // ADC clk delay         
          if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB08_14_250)  mval = 20;   // ADC clk delay    
-         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)  mval = 10 + (0<<4) + (10<<8) + ((30/2)<<12);    // ADC clk delay: 4 bits per channel, range from 0-15, multiplied by 2 in FPGA . 
+         if( (revsn & PNXL_DB_VARIANT_MASK) == PNXL_DB10_12_500)  mval = 10 + (0<<4) + (2<<8) + (10<<12);    // ADC clk delay: 4 bits per channel, range from 0-15, multiplied by 2 in FPGA .    
                                                              //   mval = 10 + (10<<4) + (10<<8) + (10<<12);    // for older compiles?)  
-                                                             //   11/8 compile: 10/0/0/15 ok (x2 in FPGA)         
+                                                             //   11/8/23 compile: 10/0/0/15 ok (x2 in FPGA)         
+                                                             //   channel order: bit 15 [ch.2 | ch.3 | ch.1 | ch.0] bit 0   due to pin/channel swap in layout
          // write clock delays
          mapped[AMZ_EXAFWR]    = AK7_ADCBITSLIP;       // write to  k7's addr     addr 0x06 for clk and data delay
          mapped[AMZ_EXDWR]     = mval;                 // write to ADC_delay register to set values
@@ -2220,213 +2220,7 @@ int main(void) {
       }  // end for N_K7_FPGAS 
   }  // end DB10
   
- if(0)
- {
-      // --------------------------- Auxiliary programming ----------------------------------
 
-      addr = 0;
-      data = 0;     
-      printf( " Programming TTCL board (if present) \n");  
-      for(k7=0;k7<N_K7_FPGAS;k7++)
-      {
-
-         mapped[AMZ_DEVICESEL] = cs[k7];	            // select FPGA  
-         mapped[AMZ_EXAFWR]    = AK7_PAGE;            // write to  K7's addr        addr 3 = channel/system, select    
-         mapped[AMZ_EXDWR]     = PAGE_SYS;            //  0x000  = system page                
-
-   
-         // check if there is a TTCL board
-         // 2. b.	The TTCL interface card powers up ... register 1 default value is 0x67
-         addr = 1;
-
-         reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
-         mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
-         mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
-   
-         reglo = (data & 0xFFFF);     
-         mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
-         mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
-         usleep(100);
-   
-         mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
-         data =  mapped[AMZ_EXDRD];                // read from K7
-         if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly    
-   
-         if((data & 0x00FF)!=0x67)
-         {
-            printf( "  Reg 1: 0x%04X Unexpected default value, exiting. \n", data);   
-            flock( fd, LOCK_UN );
-            munmap(map_addr, size);
-            close(fd);
-            return(-1);
-         }
-         else
-         {
-            printf( "  Reg 1: 0x%04X (expected default value)\n", data); 
-            // and continue
-         
-
-            //  6. switch from local to TTCL clock 
-      
-            // switch clock
-            addr = 0;
-            data = 0x8000;                            // set bit 15 in the control register 
-            reghi = (addr & 0x7F);                    // 7 bits of address, bit 8 = 0 for write
-            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
-            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
-      
-            reglo = (data & 0xFFFF);     
-            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
-            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
-            usleep(100);
-      
-            // reset SERDES_SM_LOST_LOCK
-            addr = 0;
-            data = 0x0020;                            // clear the  SERDES_SM_LOST_LOCK bit (npw that we have a good clock) 
-            reghi = (addr & 0x7F);                    // 7 bits of address, bit 8 = 0 for write
-            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
-            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
-      
-            reglo = (data & 0xFFFF);     
-            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
-            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
-            usleep(100);
-      
-            // read status
-            addr = 13;
-            reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
-            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
-            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
-      
-            reglo = (data & 0xFFFF);     
-            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
-            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
-            usleep(100);
-      
-            mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
-            data =  mapped[AMZ_EXDRD];                // read from K7
-            if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly    
-      
-            if(data!=0x001E)      // check bits 2,3 high
-            {
-               printf( "   Reg 13: 0x%04X Unexpected status, should be 0x1E, but continuing  \n", data);   
-               //flock( fd, LOCK_UN );
-               //munmap(map_addr, size);
-               //close(fd);
-               //return(-1);
-            }
-            else
-            {
-               printf( "   Reg 13: 0x%04X Status register indicates '0x1E', proceeding.  \n", data); 
-            }
-   
-   
-          //  8. program delays
-      
-         //    use defaults for now
-      
-         //       Enable the delayed-trigger logic by setting bit 14 of the register at address 3.  
-         //       Again, this would require a read-modify-write as other bits in this register do other things; 
-      
-            // read addr 3
-            addr = 3;
-            reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
-            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
-            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
-      
-            reglo = (data & 0xFFFF);     
-            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
-            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
-            usleep(100);
-      
-            mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
-            data =  mapped[AMZ_EXDRD];                // read from K7
-            if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
-      
-            printf( "   DIAGNOSTIC_CTL_REG: 0x%04x, now turning on delayed trigger logic \n", data); 
-       
-            // set bit 14
-            data = data | 0x4000;
-            reghi = (addr & 0x7F);                    // 7 bits of address, bit 8 = 0 for write
-            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
-            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
-      
-            reglo = (data & 0xFFFF);     
-            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
-            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
-            usleep(100);
-      
-      
-            // read back addr 3
-            reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
-            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
-            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
-      
-            reglo = (data & 0xFFFF);     
-            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
-            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
-            usleep(100);
-      
-            mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
-            data =  mapped[AMZ_EXDRD];                // read from K7
-            if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
-      
-            printf( "   DIAGNOSTIC_CTL_REG: 0x%04x read back after change  \n", data); 
-   
-           
-            // set delay in register 8
-             // read addr 8
-            addr = 8;
-            reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
-            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
-            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
-      
-            reglo = (data & 0xFFFF);     
-            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
-            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
-            usleep(100);
-      
-            mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
-            data =  mapped[AMZ_EXDRD];                // read from K7
-            if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
-      
-            printf( "   ACCEPT_MSG_DELAY_REG: 0x%04x, now writing new delay ", data); 
-       
-            // set delay value
-            data = 0x300;                             // TODO: use value  from ini file  
-            printf( "   0x%04x \n ", data);
-            reghi = (addr & 0x7F);                    // 7 bits of address, bit 8 = 0 for write
-            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
-            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
-      
-            reglo = (data & 0xFFFF);     
-            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
-            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
-            usleep(100);
-      
-      
-            // read back addr 8
-            reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
-            mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
-            mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
-      
-            reglo = (data & 0xFFFF);     
-            mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
-            mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
-            usleep(100);
-      
-            mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
-            data =  mapped[AMZ_EXDRD];                // read from K7
-            if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
-      
-            printf( "  ACCEPT_MSG_DELAY_REG: 0x%04x read back after change  \n", data); 
-
-
-         } // end else init value ok
-
-
-      } // end for over FPGAs
-   } // end aux
 
  // clean up  
  flock( fd, LOCK_UN );

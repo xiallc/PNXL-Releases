@@ -78,6 +78,8 @@ int main( int argc, char *argv[] ) {
   unsigned int A_TIMESTAMP_OFFSET_REG = 7;
   unsigned int A_ACCEPT_MSG_DELAY_REG = 8;
   unsigned int A_STATUS_REG = 13;
+  unsigned int A_CODE_DATE = 126;
+  unsigned int A_CODE_REVISION = 127;
 
   /*  comment out to suppress warnings for unused I2C variables
   const char *ini_file = "ttcliic.ini";   
@@ -128,13 +130,13 @@ int main( int argc, char *argv[] ) {
 
   if( argc!=3)  {
      printf( "Please give arguments\n");
-     printf( " 1) for ACCEPT_MSG_DELAY_REG (message propagation, default 200)\n");
-     printf( " 2) for TIMESTAMP OFFSET REG (Pixie energy filter, default 50)\n");
+     printf( " 1) for ACCEPT_MSG_DELAY_REG (message propagation, default 0x200)\n");
+     printf( " 2) for TIMESTAMP OFFSET REG (Pixie energy filter, default 0x50)\n");
      return -1;
    }
 
-   Mdelay = strtol(argv[1], NULL, 10);     
-   Tdelay = strtol(argv[2], NULL, 10); 
+   Mdelay = strtol(argv[1], NULL, 0);     
+   Tdelay = strtol(argv[2], NULL, 0); 
 
    
    // ************************ prepare to write *********************************
@@ -145,7 +147,42 @@ int main( int argc, char *argv[] ) {
       mapped[AMZ_DEVICESEL] = cs[k7];	            // select FPGA  
       mapped[AMZ_EXAFWR]    = AK7_PAGE;            // write to  K7's addr        addr 3 = channel/system, select    
       mapped[AMZ_EXDWR]     = PAGE_SYS;            //  0x000  = system page                
-      printf( " Configuring Kintex # %d \n", k7);
+      printf( " Configuring Kintex # %d \n", k7);      
+
+        // -------------------------------------------------------------------
+       // 0. Read Spartan 6 FW date and revision
+       // -------------------------------------------------------------------
+
+      addr = A_CODE_DATE;
+      reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
+      mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+      mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+
+      reglo = (data & 0xFFFF);     
+      mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+      mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+      usleep(100);
+
+      mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
+      data =  mapped[AMZ_EXDRD];                // read from K7
+      if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly    
+      printf( "  Code Date: 0x%04X  \n", data);      
+
+
+      addr = A_CODE_REVISION;
+      reghi = (addr & 0x7F) + 0x80;             // 7 bits of address, bit 8 = 1 for read
+      mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
+      mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
+
+      reglo = (data & 0xFFFF);     
+      mapped[AMZ_EXAFWR] = AK7_PLLSPID;         // write to K7's addr     addr 0x1C = SPID and starts the serial output
+      mapped[AMZ_EXDWR]  = reglo;               // write to ADC SPI       data should be ignored, instead TTCL fills register in K7
+      usleep(100);
+
+      mapped[AMZ_EXAFRD] = AK7_SPI_RETURN;      // write to K7's addr     addr 0x96 = SPI return value  
+      data =  mapped[AMZ_EXDRD];                // read from K7
+      if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
+      printf( "  Code Revision: %d  \n", data); 
    
    
        // -------------------------------------------------------------------
@@ -525,7 +562,7 @@ int main( int argc, char *argv[] ) {
       data =  mapped[AMZ_EXDRD];                // read from K7
       if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
 
-      printf( "  DIAGNOSTIC_CTL_REG 0x%4x, now turning on delyed trigger logic \n", data); 
+      printf( "  DIAGNOSTIC_CTL_REG current value is 0x%4x, now turning on delayed trigger logic \n", data); 
  
       // set bit 14
       data = data | 0x4000;
@@ -573,12 +610,11 @@ int main( int argc, char *argv[] ) {
       data =  mapped[AMZ_EXDRD];                // read from K7
       if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
       
-      printf( "  ACCEPT_MSG_DELAY_REG: %d, now writing new delay ", data); 
+      printf( "  ACCEPT_MSG_DELAY_REG current value is 0x%x, now writing new delay 0x%x \n", data, Mdelay); 
       
       // set delay value
       data = Mdelay; //                         // TODO: use value  from ini file  
-                                             // 200 is a reasonable delay for message propagation
-      printf( "   0x%x \n", data);
+                                                // 200 is a reasonable delay for message propagation
       reghi = (addr & 0x7F);                    // 7 bits of address, bit 8 = 0 for write
       mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  
       mapped[AMZ_EXDWR]  = reghi;               // write to ADC SPI register   
@@ -603,7 +639,7 @@ int main( int argc, char *argv[] ) {
       data =  mapped[AMZ_EXDRD];                // read from K7
       if(SLOWREAD)  data =  mapped[AMZ_EXDRD];  // again to capture properly  
       
-      printf( "  ACCEPT_MSG_DELAY_REG: %d read back after change  \n", data); 
+      printf( "  ACCEPT_MSG_DELAY_REG: 0x%x read back after change  \n", data); 
       
       
       // -------------------- set Pixie delay (for E sum) in register 7   --------------------
@@ -612,7 +648,7 @@ int main( int argc, char *argv[] ) {
       addr = A_TIMESTAMP_OFFSET_REG;
       data = Tdelay;                            // TODO: use value  from ini file  
                                              // 1 tick = 20ns
-      printf( "  TIMESTAMP_OFFSET_REG: now writing requested value %d  \n", data); 
+      printf( "  TIMESTAMP_OFFSET_REG: now writing requested value 0x%x  \n", data); 
       
       reghi = (addr & 0x7F);                    // 7 bits of address, bit 8 = 0 for write
       mapped[AMZ_EXAFWR] = AK7_PLLSPIA;         // write to  K7's addr     addr 0x1B = SPIA  

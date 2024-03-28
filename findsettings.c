@@ -250,34 +250,44 @@ int main(void) {
            {
                ch = ch_k7+k7*NCHANNELS_PER_K7;
 
-               mapped[AMZ_DEVICESEL] =  cs[k7];	         // select FPGA
-               mapped[AMZ_EXAFWR]    = AK7_PAGE;         // write to  k7's addr        addr 3 = channel/system, select    
-               mapped[AMZ_EXDWR]     = PAGE_CHN+ch_k7;   //  0x100  =channel 0                  
-               mapped[AMZ_EXAFRD]    = AK7_ADC;          // write to  k7's addr
+               mapped[AMZ_DEVICESEL] =  cs[k7];	                  // select FPGA
+               mapped[AMZ_EXAFWR]    = AK7_PAGE;                  // write to  k7's addr        addr 3 = channel/system, select    
+               mapped[AMZ_EXDWR]     = PAGE_CHN+ch_k7;            //  0x100  =channel 0                  
+               mapped[AMZ_EXAFRD]    = AK7_ADC;                   // write to  k7's addr
                usleep(1);
+               mapped[AMZ_EXAFRD]    = AK7_ADC;                   // write to  k7's addr
                adc = mapped[AMZ_EXDRD];                           // read K7 data from MZ
-               if((adc==2730) | (adc==13653))  adcchanged[ch]++ ;     // check if it's one of the expected values
+               if((adc==2730) | (adc==13653))  adcchanged[ch]++ ; // check if it's one of the expected values
+               //printf(" Channel %u: ADC value %d \n",ch, adc);
+               mapped[AMZ_EXAFRD]    = AK7_ADC;                   // write to  k7's addr
                adc = mapped[AMZ_EXDRD];                           // read K7 data from MZ
-               if((adc==2730) | (adc==13653))  adcchanged[ch]++ ;     // check if it's one of the expected values
+               if((adc==2730) | (adc==13653))  adcchanged[ch]++ ; // check if it's one of the expected values
+               //printf(" Channel %u: ADC value %d \n",ch, adc);
+               mapped[AMZ_EXAFRD]    = AK7_ADC;                   // write to  k7's addr
                adc = mapped[AMZ_EXDRD];                           // read K7 data from MZ
-               if((adc==2730) | (adc==13653))  adcchanged[ch]++ ;     // check if it's one of the expected values
+               if((adc==2730) | (adc==13653))  adcchanged[ch]++ ; // check if it's one of the expected values
+               //printf(" Channel %u: ADC value %d \n",ch, adc);
+               mapped[AMZ_EXAFRD]    = AK7_ADC;                   // write to  k7's addr
                adc = mapped[AMZ_EXDRD];                           // read K7 data from MZ
-               if((adc==2730) | (adc==13653))  adcchanged[ch]++ ;     // check if it's one of the expected values
+               if((adc==2730) | (adc==13653))  adcchanged[ch]++ ; // check if it's one of the expected values
+               //printf(" Channel %u: ADC value %d \n",ch, adc);
 
-               if (adcchanged[ch] != 4)  {
-                  bit = 0x0001 << (ch_k7/2);                  // compute bit to toggle per ADC channel pair
-                  mapped[AMZ_DEVICESEL]   =  cs[k7];	     // select FPGA
-                  mapped[AMZ_EXAFWR]      = AK7_PAGE;      // write to  k7's addr        addr 3 = channel/system, select    
+               if (adcchanged[ch] < 3)  {                         // one missed read is ok
+                  bit = 0x0001 << (ch_k7/2);                      // compute bit to toggle per ADC channel pair
+                  mapped[AMZ_DEVICESEL]   =  cs[k7];	            // select FPGA
+                  mapped[AMZ_EXAFWR]      = AK7_PAGE;             // write to  k7's addr        addr 3 = channel/system, select    
                   mapped[AMZ_EXDWR]       = PAGE_SYS;                                              
-                  mapped[AMZ_EXAFRD]      = AK7_ADCCTRL;   // write to  k7's addr
+                  mapped[AMZ_EXAFRD]      = AK7_ADCCTRL;          // write to  k7's addr
                   usleep(1);
-                  mval = mapped[AMZ_EXDRD];                // read K7 data from MZ
+                  mval = mapped[AMZ_EXDRD];                       // read K7 data from MZ
+                  //printf(" ADC swap pattern was 0x%x ",mval);
    
                   mval = mval ^ bit;
-                  mapped[AMZ_EXAFWR]      = AK7_ADCCTRL;   // write to  k7's addr        addr 3 = channel/system, select    
-                  mapped[AMZ_EXDWR]       = mval;          // swap 0/1                                 
+                  printf(" now changed to  0x%x \n",mval);
+                  mapped[AMZ_EXAFWR]      = AK7_ADCCTRL;          // write to  k7's addr        addr 3 = channel/system, select    
+                  mapped[AMZ_EXDWR]       = mval;                 // swap 0/1                                 
    
-                  printf(" Channel %u: ADC values does not change with DAC. Swapped channel inputs\n",ch);
+                  printf(" Channel %u: ADC values does not change to test value. Swapped channel inputs\n",ch);
                }   // end unchanged
 
 

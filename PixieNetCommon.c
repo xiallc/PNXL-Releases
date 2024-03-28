@@ -68,7 +68,7 @@
   version_check               [  ]     checks version numbers for mismatch between SW, FW, HW
   read_print_runstats         [--]     prints all run statistics in various modes, Pixie-Net legacy
   read_print_runstats_XL_2x4  [ok]     prints all run statistics in various modes, Pixie-Net XL up to 16 channels
-  read_print_rates_XL_2x4     [ok]     prints all run statistics in various modes, Pixie-Net XL up to 16 channels
+  read_print_rates_XL_2x4     [ok]     prints some run statistics in various modes, Pixie-Net XL up to 16 channels
   
   ADCinit_DB01                [ok]     special steps required to initialize ADC DB01
   PLLinit                     [--]     special steps required to initialize WR PLL (low jitter version, now unused)
@@ -78,10 +78,10 @@
 
   setdacs08                   [ok]     programs DAC values for DB08 (I2C)
   setdacs04                   [ok]     programs DAC values for DB04 (I2C)
-  setdacs01                   [ok]     programs DAC values for DB01, DB06 (SPI)
+  setdacs01                   [ok]     programs DAC values for DB01, DB06, DB10 (SPI)
   ADCSPI_Read06               [ok]     read  ADC SPI, DB06
-  ADCSPI_Write06              [ok]     write ADC SPI, DB06 (and DB02,4,8)
-  ADCSPI_Read10               [ok]     read  ADC SPI, DB010
+  ADCSPI_Write06              [ok]     write ADC SPI, DB06 (and DB02,4,8,10)
+  ADCSPI_Read10               [ok]     read  ADC SPI, DB10
                                  
   get_average                 [ok]     compute average of samples (unsigned int)
   get_faverage                [ok]     compute average of samples (double)
@@ -1335,11 +1335,6 @@ int read_print_runstats_XL_2x4(int mode, int dest, volatile unsigned int *mapped
             chn[ch][k+20] = mapped[AMZ_EXDRD];
             if(SLOWREAD) chn[ch][k+20] = mapped[AMZ_EXDRD]; 
            
-      //      if(dest == 0)  {
-      //         printf("ch %d CT value %d   ", ch_k7, chn[ch][k+0]);
-      //         printf("NTRIG value %d   ", chn[ch][k+4]);
-      //         printf("NPPI value %d (%x)\n", chn[ch][k+8],chn[ch][k+8]);
-      //      }
          }     //end for time words
 
          mapped[AMZ_EXAFRD] = AK7_CHN_RS_ICR;    // read from channel output range
@@ -1490,7 +1485,6 @@ int read_print_runstats_XL_2x4(int mode, int dest, volatile unsigned int *mapped
 
       sy[0][20] = (unsigned int)board_temperature(mapped,I2C_SELDB0);
       sy[1][20] = (unsigned int)board_temperature(mapped,I2C_SELDB1);
-  //  printf("T_board %d, T_DB0 %d, T_DB1 %d\n", co[15], sy[0][15], sy[1][15]); 
       
       lastrs = N_USED_RS_PAR;
    }
@@ -1532,8 +1526,6 @@ int read_print_runstats_XL_2x4(int mode, int dest, volatile unsigned int *mapped
             printf("},  \n");
             //printf("%s:\"%s\",%s:%u,%s:%u,%s:%u,%s:%u,%s:%u,%s:%u,%s:%u,%s:%u},  \n", N[5],Channel_PLRS_Names[k],N[6],chn[0][k],N[7],chn[1][k],N[8],chn[2][k],N[9],chn[3][k],N[10],chn[4][k],N[11],chn[5][k],N[12],chn[6][k],N[13],chn[7][k]);
          }
-   //      if(dest != 1) fprintf(fil,"%s,0x%X,%s,%u,%u,%u,%u\n ",Module_PLRS_Names[k],m[k],Channel_PLRS_Names[k],c[0][k],c[1][k],c[2][k],c[3][k]);
-   //      if(dest != 0) printf("{%s:\"%s\",%s:\"0x%X\",%s:\"%s\",%s:%u,%s:%u,%s:%u,%s:%u},  \n",N[0],Module_PLRS_Names[k],N[1],m[k],N[2],Channel_PLRS_Names[k],N[3],c[0][k],N[4],c[1][k],N[5],c[2][k],N[6],c[3][k]);
       }
    }  // end for
 
@@ -2360,9 +2352,6 @@ int read_print_rates_XL_2x4(int dest, volatile unsigned int *mapped ) {
             chn[ch][k+8] = mapped[AMZ_EXDRD];
             if(SLOWREAD) chn[ch][k+8] = mapped[AMZ_EXDRD]; 
           
-        //    printf("CT value %x   ", chn[ch][k+0]);
-        //    printf("NTRIG value %x   ", chn[ch][k+4]);
-        //    printf("NPPI value %x\n", chn[ch][k+8]);
          }     //end for time words
      }    // end for channels in k7
   } // end for K7s

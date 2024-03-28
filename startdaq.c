@@ -1097,7 +1097,7 @@ int main(void) {
         tmp1 = mapped[AMZ_RS_TT+2];
         if(verbose) printf("%s %4.5G \n","Total_Time",((double)tmp0*65536+(double)tmp1*TWOTO32)*1e-9);    
         // print (small) set of RS to file, visible to web
-        //read_print_runstats_XL_2x4(1, 0, 1 mapped);      // print all, print to file, P4e statistics
+        if(loopcount % (PollTime*10) == 0) read_print_runstats_XL_2x4(1, 0, mapped);      // print partial, print to file  but 10x less frequent (it's slow)
         read_print_rates_XL_2x4(0,mapped);
    
 
