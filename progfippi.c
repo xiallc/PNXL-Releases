@@ -414,6 +414,7 @@ int main(void) {
            (fippiconfig.RUN_TYPE == 0x110)  ||
            (fippiconfig.RUN_TYPE == 0x111)  ||
            (fippiconfig.RUN_TYPE == 0x400)  ||
+           (fippiconfig.RUN_TYPE == 0x401)  ||
            (fippiconfig.RUN_TYPE == 0x404)  ||
            (fippiconfig.RUN_TYPE == 0x410)  ||
            (fippiconfig.RUN_TYPE == 0x411)   ) ) {
@@ -442,7 +443,7 @@ int main(void) {
 
 
     // remember to turn off trace capture for no-trace runtypes
-    if( (fippiconfig.RUN_TYPE == 0x301) ) // || (fippiconfig.RUN_TYPE == 0x401) )
+    if( (fippiconfig.RUN_TYPE == 0x301) || (fippiconfig.RUN_TYPE == 0x401) )
       traceena = 0;
     else
       traceena = 1;

@@ -250,12 +250,12 @@ int main(void) {
      // 555
   }
 
-  if( (RunType==0x100) || (RunType==0x105) || (RunType==0x110) || (RunType==0x111) || 
+  if( (RunType==0x100) || (RunType==0x105) || (RunType==0x110) || (RunType==0x111) || (RunType==0x401) || 
       (RunType==0x400) || (RunType==0x404) || (RunType==0x410) || (RunType==0x411) ) {      // check run type
       // 0x301 no longer supported because header memory is disabled for pure MCA runs, use mcadaq instead
          // runtype ok, do nothing
   } else {
-      printf( "This function only supports runtypes 0x100 (P16), 0x105, 0x110, 0x111, 0x400, 0x404, 0x410, 0x411, not 0x%x \n",RunType);
+      printf( "This function only supports runtypes 0x100 (P16), 0x105, 0x110, 0x111, 0x400, 0x401, 0x404, 0x410, 0x411, not 0x%x \n",RunType);
       return(-1);
   }
 
@@ -346,17 +346,17 @@ int main(void) {
      fwrite( buffer1, 2, FILE_HEAD_LENGTH_400, fil );     // write to file
    }  
    
-  /*
+  
    if(RunType==0x401){
       // write a 0x401 header
       sprintf(filename,"%s_m%d.dt3","LMdata",fippiconfig.MODULE_ID); //file name: .dt3
       fil = fopen(filename, "w"); // create .dt3 file
       fprintf(fil, "\nModule:\t%hu\n",         fippiconfig.MODULE_ID);
-      fprintf(fil, "Run Type:\t%hu\n",         0x401);
+      fprintf(fil, "Run Type:\t0x%x\n",         0x401);
       fprintf(fil, "Run Start Time :\t %lld \n\n", (long long)starttime);
       fprintf(fil, "Event\tChannel\tTimeStamp\tEnergy\tRT\tApeak\tBsum\tQ0\tQ1\tPSAval\n");
    }
-   */
+   
    // currently no local output file for 0x110, 0x111, 0x410, 0x411
 
 
@@ -935,13 +935,13 @@ int main(void) {
                              memcpy( buffer2 + 20, &(out2),  2 );
                              out2 = hdr[11];
                              memcpy( buffer2 + 22, &(out2),  2 );
-                             out2 = hdr[12];
+                             out2 = hdr[12];                             // gap sum or CFD src
                              memcpy( buffer2 + 24, &(out2),  2 );
-                             out2 = hdr[13];
+                             out2 = hdr[13];                             // gapsum or CFD sum 1
                              memcpy( buffer2 + 26, &(out2),  2 );
-                             out2 = hdr[14];
+                             out2 = hdr[14];                             // base avg or cfd sum 1/2
                              memcpy( buffer2 + 28, &(out2),  2 );
-                             out2 = hdr[15];
+                             out2 = hdr[15];                             // base avg or cfd sum 2
                              memcpy( buffer2 + 30, &(out2),  2 );     
                              //memcpy( buffer2 + 16, &(tsum),  4 );
                              //memcpy( buffer2 + 20, &(lsum),  4 );   
@@ -1006,7 +1006,7 @@ int main(void) {
                              // "Event\tChannel\tTimeStamp\tEnergy\tRT\tApeak\tBsum\tQ0\tQ1\tPSAval\n
                              fprintf(fil, "%u\t%hu\t%llu\t%hu\t%hu\t%hu\t%hu\t%hu\t%hu\t%hu\n", 
                                 eventcount, 
-                                chw,
+                                ch,         // unmodified channel number
                                 tmp_ll>>1,     // full timestamp in 2ns units  
                                 energy, 
                                 0,             // no rise time
