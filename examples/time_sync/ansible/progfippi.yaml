@@ -1,0 +1,8 @@
+---
+- name: Program FIPPI
+  hosts: all
+  tasks:
+    - name: Execute progfippi
+      shell:
+        cmd: ./progfippi
+        chdir: /var/www/

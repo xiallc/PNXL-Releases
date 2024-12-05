@@ -1,0 +1,8 @@
+---
+- name: Start Run
+  hosts: all
+  tasks:
+    - name: Execute startdaq
+      shell:
+        cmd: ./startdaq &
+        chdir: /var/www/
